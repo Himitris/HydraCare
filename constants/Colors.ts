@@ -1,0 +1,193 @@
+// Color system for HydraCare app
+
+// Base colors
+const tintColorLight = '#0096FF';
+const tintColorDark = '#4DB6FE';
+
+// Color palette
+export default {
+  light: {
+    primary: {
+      50: '#E6F5FF',
+      100: '#B3E0FF',
+      200: '#80CCFF',
+      300: '#4DB8FF',
+      400: '#1AA3FF',
+      500: '#0096FF', // Primary color
+      600: '#0078CC',
+      700: '#005A99',
+      800: '#003C66',
+      900: '#001E33',
+    },
+    secondary: {
+      50: '#E6FBF9',
+      100: '#B3F3ED',
+      200: '#80EBE1',
+      300: '#4DE3D5',
+      400: '#1ADBC9',
+      500: '#00D2BD', // Secondary color
+      600: '#00A897',
+      700: '#007E71',
+      800: '#00544C',
+      900: '#002A26',
+    },
+    accent: {
+      50: '#FFF4E6',
+      100: '#FFE0B3',
+      200: '#FFCC80',
+      300: '#FFB84D',
+      400: '#FFA41A',
+      500: '#FF9000', // Accent color
+      600: '#CC7300',
+      700: '#995600',
+      800: '#663A00',
+      900: '#331D00',
+    },
+    success: {
+      50: '#E6FFED',
+      100: '#B3FFCB',
+      200: '#80FFA9',
+      300: '#4DFF87',
+      400: '#1AFF65',
+      500: '#00F050', // Success color
+      600: '#00CC42',
+      700: '#009932',
+      800: '#006621',
+      900: '#003311',
+    },
+    warning: {
+      50: '#FFF9E6',
+      100: '#FFEEB3',
+      200: '#FFE380',
+      300: '#FFD84D',
+      400: '#FFCD1A',
+      500: '#FFC200', // Warning color
+      600: '#CC9B00',
+      700: '#997400',
+      800: '#664D00',
+      900: '#332700',
+    },
+    error: {
+      50: '#FFE6E6',
+      100: '#FFB3B3',
+      200: '#FF8080',
+      300: '#FF4D4D',
+      400: '#FF1A1A',
+      500: '#FF0000', // Error color
+      600: '#CC0000',
+      700: '#990000',
+      800: '#660000',
+      900: '#330000',
+    },
+    neutral: {
+      50: '#F5F7FA',
+      100: '#E4E7EB',
+      200: '#CBD2D9',
+      300: '#9AA5B1',
+      400: '#7B8794',
+      500: '#616E7C',
+      600: '#52606D',
+      700: '#3E4C59',
+      800: '#323F4B',
+      900: '#1F2933',
+    },
+    text: '#1F2933',
+    background: '#F5F7FA',
+    tint: tintColorLight,
+    tabIconDefault: '#7B8794',
+    tabIconSelected: tintColorLight,
+    cardBackground: '#FFFFFF',
+  },
+  dark: {
+    primary: {
+      50: '#001E33',
+      100: '#003C66',
+      200: '#005A99',
+      300: '#0078CC',
+      400: '#1AA3FF',
+      500: '#4DB6FE', // Primary color (dark mode)
+      600: '#80CCFF',
+      700: '#B3E0FF',
+      800: '#E6F5FF',
+      900: '#F5FAFF',
+    },
+    secondary: {
+      50: '#002A26',
+      100: '#00544C',
+      200: '#007E71',
+      300: '#00A897',
+      400: '#1ADBC9',
+      500: '#4DE3D5', // Secondary color (dark mode)
+      600: '#80EBE1',
+      700: '#B3F3ED',
+      800: '#E6FBF9',
+      900: '#F5FEFD',
+    },
+    accent: {
+      50: '#331D00',
+      100: '#663A00',
+      200: '#995600',
+      300: '#CC7300',
+      400: '#FFA41A',
+      500: '#FFB84D', // Accent color (dark mode)
+      600: '#FFCC80',
+      700: '#FFE0B3',
+      800: '#FFF4E6',
+      900: '#FFFAF5',
+    },
+    success: {
+      50: '#003311',
+      100: '#006621',
+      200: '#009932',
+      300: '#00CC42',
+      400: '#1AFF65',
+      500: '#4DFF87', // Success color (dark mode)
+      600: '#80FFA9',
+      700: '#B3FFCB',
+      800: '#E6FFED',
+      900: '#F5FFF9',
+    },
+    warning: {
+      50: '#332700',
+      100: '#664D00',
+      200: '#997400',
+      300: '#CC9B00',
+      400: '#FFCD1A',
+      500: '#FFD84D', // Warning color (dark mode)
+      600: '#FFE380',
+      700: '#FFEEB3',
+      800: '#FFF9E6',
+      900: '#FFFDF5',
+    },
+    error: {
+      50: '#330000',
+      100: '#660000',
+      200: '#990000',
+      300: '#CC0000',
+      400: '#FF1A1A',
+      500: '#FF4D4D', // Error color (dark mode)
+      600: '#FF8080',
+      700: '#FFB3B3',
+      800: '#FFE6E6',
+      900: '#FFF5F5',
+    },
+    neutral: {
+      50: '#1F2933',
+      100: '#323F4B',
+      200: '#3E4C59',
+      300: '#52606D',
+      400: '#616E7C',
+      500: '#7B8794',
+      600: '#9AA5B1',
+      700: '#CBD2D9',
+      800: '#E4E7EB',
+      900: '#F5F7FA',
+    },
+    text: '#F5F7FA',
+    background: '#1F2933',
+    tint: tintColorDark,
+    tabIconDefault: '#7B8794',
+    tabIconSelected: tintColorDark,
+    cardBackground: '#323F4B',
+  },
+};
