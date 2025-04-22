@@ -16,9 +16,10 @@
       "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": [
-      "expo-router"
-    ],
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "plugins": ["expo-router", "expo-updates"],
     "experiments": {
       "typedRoutes": true
     },
