@@ -28,7 +28,7 @@ interface ZenButtonProps {
 }
 
 const { width } = Dimensions.get('window');
-const BUTTON_WIDTH = (width - 60) / 2; // 2 buttons per row with padding
+const BUTTON_WIDTH = (width - 80) / 4; // 4 buttons per row with padding
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -48,7 +48,7 @@ export default function ZenButton({
 
   // Handle press with smooth animation
   const handlePressIn = () => {
-    pressScale.value = withSpring(0.96, { damping: 15, stiffness: 150 });
+    pressScale.value = withSpring(0.95, { damping: 15, stiffness: 150 });
     brightness.value = withTiming(1, { duration: 200 });
   };
 
@@ -73,27 +73,20 @@ export default function ZenButton({
   }));
 
   // Format amount
-  const displayAmount =
-    settings.preferredUnit === 'ml'
-      ? `${amount} ml`
-      : `${Math.round(amount * 0.033814)} oz`;
+  const formattedAmount = amount >= 1000 ? `${amount / 1000}L` : `${amount}ml`;
 
   // Colors based on mode
-  const buttonColors = correctionMode
-    ? [colors.error[100], colors.error[200]]
-    : [colors.primary[100], colors.primary[200]];
+  const buttonColors: [string, string] = correctionMode
+    ? [colors.error[50], colors.error[100]]
+    : [colors.primary[50], colors.primary[100]];
 
   const textColors = correctionMode ? colors.error[600] : colors.primary[600];
 
-  const labelColor = correctionMode ? colors.error[700] : colors.primary[700];
+  const iconColor = correctionMode ? colors.error[500] : colors.primary[500];
 
   return (
     <AnimatedTouchable
-      style={[
-        styles.container,
-        buttonStyle,
-        compact && styles.compactContainer,
-      ]}
+      style={[styles.container, buttonStyle]}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       activeOpacity={1}
@@ -106,35 +99,19 @@ export default function ZenButton({
       >
         <Animated.View style={[styles.overlay, overlayStyle]} />
 
-        <Text
-          style={[
-            styles.label,
-            { color: labelColor },
-            compact && styles.compactLabel,
-          ]}
-        >
-          {label}
-        </Text>
-
-        <Text
-          style={[
-            styles.amount,
-            { color: textColors },
-            compact && styles.compactAmount,
-          ]}
-        >
-          {correctionMode ? '-' : '+'} {displayAmount}
-        </Text>
-
-        <Animated.View
-          style={[styles.iconContainer, compact && styles.compactIcon]}
-        >
+        <Animated.View style={styles.iconContainer}>
           {correctionMode ? (
-            <Minus size={compact ? 16 : 20} color={textColors} />
+            <Minus size={16} color={iconColor} />
           ) : (
-            <Plus size={compact ? 16 : 20} color={textColors} />
+            <Plus size={16} color={iconColor} />
           )}
         </Animated.View>
+
+        <Text style={[styles.amount, { color: textColors }]}>
+          {formattedAmount}
+        </Text>
+
+        <Text style={[styles.label, { color: textColors }]}>{label}</Text>
       </LinearGradient>
     </AnimatedTouchable>
   );
@@ -143,60 +120,37 @@ export default function ZenButton({
 const styles = StyleSheet.create({
   container: {
     width: BUTTON_WIDTH,
-    aspectRatio: 1.2,
-    borderRadius: 24,
+    height: 72,
+    borderRadius: 16,
     overflow: 'hidden',
+    marginHorizontal: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  compactContainer: {
-    aspectRatio: 1.5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   gradient: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 8,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'white',
   },
-  label: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  compactLabel: {
-    fontSize: 12,
+  iconContainer: {
     marginBottom: 2,
   },
   amount: {
-    fontSize: 20,
+    fontSize: 15,
     fontFamily: 'Inter-SemiBold',
-    letterSpacing: -0.5,
-    marginBottom: 8,
+    marginBottom: 1,
   },
-  compactAmount: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compactIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  label: {
+    fontSize: 11,
+    fontFamily: 'Inter-Medium',
+    opacity: 0.8,
   },
 });

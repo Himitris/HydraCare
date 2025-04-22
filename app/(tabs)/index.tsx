@@ -16,12 +16,15 @@ import Animated, {
   withRepeat,
   withTiming,
   Easing,
+  withSpring,
 } from 'react-native-reanimated';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
 import WaterGlass from '@/components/WaterGlass';
 import ZenButton from '@/components/ZenButton';
 import { Minus, CheckCircle } from 'lucide-react-native';
+import { TouchableOpacity } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,12 +34,22 @@ export default function HomeScreen() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [correctionMode, setCorrectionMode] = useState(false);
 
-  // Subtle background animation
+  // Animations
   const backgroundOpacity = useSharedValue(0.8);
+  const backgroundTranslateY = useSharedValue(0);
+  const correctionModeOpacity = useSharedValue(0);
+  const correctionModeScale = useSharedValue(0.95);
 
   useEffect(() => {
+    // Background wave animation
     backgroundOpacity.value = withRepeat(
-      withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+
+    backgroundTranslateY.value = withRepeat(
+      withTiming(30, { duration: 5000, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
@@ -44,6 +57,7 @@ export default function HomeScreen() {
 
   const backgroundStyle = useAnimatedStyle(() => ({
     opacity: backgroundOpacity.value,
+    transform: [{ translateY: backgroundTranslateY.value }],
   }));
 
   // Format amounts
@@ -78,6 +92,22 @@ export default function HomeScreen() {
       setCorrectionMode(false);
     }
   }, [dailyProgress]);
+
+  // Animate correction mode toggle
+  useEffect(() => {
+    if (dailyProgress > 0) {
+      correctionModeOpacity.value = withTiming(1, { duration: 300 });
+      correctionModeScale.value = withSpring(1, { damping: 12 });
+    } else {
+      correctionModeOpacity.value = withTiming(0, { duration: 300 });
+      correctionModeScale.value = withSpring(0.95, { damping: 12 });
+    }
+  }, [dailyProgress]);
+
+  const correctionModeStyle = useAnimatedStyle(() => ({
+    opacity: correctionModeOpacity.value,
+    transform: [{ scale: correctionModeScale.value }],
+  }));
 
   const handleWaterChange = (amount: number) => {
     if (correctionMode) {
@@ -116,7 +146,18 @@ export default function HomeScreen() {
           backgroundStyle,
           { backgroundColor: colors.primary[100] + '10' },
         ]}
-      />
+      >
+        <Svg width={width} height={height * 0.25} viewBox="0 0 400 200">
+          <Path
+            d={`M0,100 
+               C100,${80 + Math.sin(Date.now() / 1000) * 10} 
+               300,${120 + Math.sin(Date.now() / 2000) * 10} 
+               400,100 
+               L400,200 L0,200 Z`}
+            fill={colors.primary[100] + '30'}
+          />
+        </Svg>
+      </Animated.View>
 
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style={isDarkMode ? 'light' : 'dark'} />
@@ -170,44 +211,62 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* Correction mode toggle - only show if progress > 0 */}
-          {dailyProgress > 0 && (
-            <View style={styles.correctionContainer}>
-              <View style={styles.correctionContent}>
-                <View style={styles.correctionTextContainer}>
-                  <Minus
-                    size={18}
-                    color={
-                      correctionMode ? colors.error[500] : colors.neutral[400]
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.correctionText,
-                      {
-                        color: correctionMode
-                          ? colors.error[500]
-                          : colors.neutral[600],
-                      },
-                    ]}
-                  >
-                    Correction mode
-                  </Text>
-                </View>
-                <Switch
-                  value={correctionMode}
-                  onValueChange={setCorrectionMode}
-                  trackColor={{
-                    false: colors.neutral[200],
-                    true: colors.error[200],
-                  }}
-                  thumbColor={
-                    correctionMode ? colors.error[500] : colors.neutral[50]
+          {/* Correction mode toggle - animated */}
+          <Animated.View
+            style={[styles.correctionContainer, correctionModeStyle]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.correctionContent,
+                {
+                  backgroundColor: correctionMode
+                    ? colors.error[50] + 'CC'
+                    : 'rgba(255, 255, 255, 0.8)',
+                },
+              ]}
+              onPress={() =>
+                dailyProgress > 0 && setCorrectionMode(!correctionMode)
+              }
+              activeOpacity={0.8}
+            >
+              <View style={styles.correctionTextContainer}>
+                <Minus
+                  size={16}
+                  color={
+                    correctionMode ? colors.error[500] : colors.neutral[400]
                   }
                 />
+                <Text
+                  style={[
+                    styles.correctionText,
+                    {
+                      color: correctionMode
+                        ? colors.error[500]
+                        : colors.neutral[600],
+                    },
+                  ]}
+                >
+                  Correction
+                </Text>
               </View>
-            </View>
-          )}
+              <Switch
+                value={correctionMode}
+                onValueChange={(value) => {
+                  if (dailyProgress > 0) {
+                    setCorrectionMode(value);
+                  }
+                }}
+                trackColor={{
+                  false: colors.neutral[200],
+                  true: colors.error[200],
+                }}
+                thumbColor={
+                  correctionMode ? colors.error[500] : colors.neutral[50]
+                }
+                disabled={dailyProgress <= 0}
+              />
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Zen buttons */}
           <View style={styles.buttonSection}>
@@ -217,30 +276,28 @@ export default function HomeScreen() {
                 label="Cup"
                 onPress={() => handleWaterChange(200)}
                 correctionMode={correctionMode}
-                compact={height < 700}
+                compact={true}
               />
               <ZenButton
                 amount={300}
                 label="Glass"
                 onPress={() => handleWaterChange(300)}
                 correctionMode={correctionMode}
-                compact={height < 700}
+                compact={true}
               />
-            </View>
-            <View style={styles.buttonRow}>
               <ZenButton
                 amount={500}
                 label="Bottle"
                 onPress={() => handleWaterChange(500)}
                 correctionMode={correctionMode}
-                compact={height < 700}
+                compact={true}
               />
               <ZenButton
                 amount={1000}
                 label="Large"
                 onPress={() => handleWaterChange(1000)}
                 correctionMode={correctionMode}
-                compact={height < 700}
+                compact={true}
               />
             </View>
           </View>
@@ -266,9 +323,9 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: height * 0.3,
-    borderBottomLeftRadius: 80,
-    borderBottomRightRadius: 80,
+    height: height * 0.25,
+    borderBottomLeftRadius: 100,
+    borderBottomRightRadius: 100,
   },
   safeArea: {
     flex: 1,
@@ -279,16 +336,16 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 30,
-    paddingTop: Platform.OS === 'ios' ? 10 : 30,
-    marginBottom: 10,
+    paddingTop: Platform.OS === 'ios' ? 8 : 20,
+    marginBottom: 5,
   },
   greeting: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Inter-Regular',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   mainText: {
-    fontSize: 28,
+    fontSize: 26,
     fontFamily: 'Inter-Bold',
     letterSpacing: -0.5,
   },
@@ -296,79 +353,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    marginTop: -10,
   },
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 16,
+    marginTop: 12,
   },
   currentAmount: {
-    fontSize: 36,
+    fontSize: 32,
     fontFamily: 'Inter-Bold',
     letterSpacing: -1,
   },
   unit: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Inter-Medium',
-    marginLeft: 8,
-    marginRight: 12,
+    marginLeft: 6,
+    marginRight: 10,
   },
   goalText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter-Regular',
   },
   celebrationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    borderRadius: 12,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 10,
   },
   celebrationText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter-Medium',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   correctionContainer: {
     paddingHorizontal: 30,
-    marginVertical: 12,
+    marginTop: 8,
+    marginBottom: 0,
   },
   correctionContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 10,
+    padding: 10,
   },
   correctionTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   correctionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter-Medium',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   buttonSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    justifyContent: 'center',
   },
   footer: {
     paddingHorizontal: 40,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
     alignItems: 'center',
   },
   quote: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Inter-Regular',
     fontStyle: 'italic',
     textAlign: 'center',

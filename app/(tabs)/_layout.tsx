@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, BarChart2, Settings, Plus } from 'lucide-react-native';
-import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Home, BarChart2, Settings } from 'lucide-react-native';
+import { Platform } from 'react-native';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
 
@@ -42,25 +42,6 @@ export default function TabLayout() {
       />
       
       <Tabs.Screen
-        name="add"
-        options={{
-          title: '',
-          tabBarIcon: () => (
-            <View style={styles.addButtonContainer}>
-              <View
-                style={[
-                  styles.addButton,
-                  { backgroundColor: colors.primary[500] },
-                ]}
-              >
-                <Plus color="#fff" size={24} />
-              </View>
-            </View>
-          ),
-        }}
-      />
-      
-      <Tabs.Screen
         name="history"
         options={{
           title: 'History',
@@ -78,26 +59,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  addButtonContainer: {
-    position: 'absolute',
-    top: -20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-    height: 60,
-  },
-  addButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-});
