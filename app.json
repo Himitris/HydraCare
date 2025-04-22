@@ -17,9 +17,13 @@
       "favicon": "./assets/images/favicon.png"
     },
     "updates": {
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/a3956965-992c-4084-8d70-27f5c02de8ac"
     },
-    "plugins": ["expo-router", "expo-updates"],
+    "plugins": [
+      "expo-router",
+      "expo-updates"
+    ],
     "experiments": {
       "typedRoutes": true
     },
@@ -33,6 +37,9 @@
     },
     "android": {
       "package": "com.himitris.HydraCare"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

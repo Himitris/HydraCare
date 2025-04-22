@@ -1,35 +1,21 @@
-// app/(apps)/todo/index.tsx
+// app/(apps)/todo/tags.tsx
 import React from 'react';
 import { StyleSheet, View, Text, SafeAreaView } from 'react-native';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
-import { CheckSquare } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Tag } from 'lucide-react-native';
 
-export default function TodoScreen() {
+export default function TodoTagsScreen() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={
-          isDarkMode
-            ? [colors.background, colors.accent[50]]
-            : [colors.accent[50], colors.background]
-        }
-        locations={[0, 0.8]}
-        style={StyleSheet.absoluteFill}
-      />
-
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.content}>
           <View style={styles.header}>
-            <CheckSquare size={48} color={colors.accent[500]} />
-            <Text style={[styles.title, { color: colors.text }]}>Todo App</Text>
-            <Text style={[styles.subtitle, { color: colors.neutral[500] }]}>
-              Coming Soon
-            </Text>
+            <Tag size={48} color={colors.accent[500]} />
+            <Text style={[styles.title, { color: colors.text }]}>Tags</Text>
           </View>
 
           <View
@@ -41,7 +27,7 @@ export default function TodoScreen() {
             <Text
               style={[styles.placeholderText, { color: colors.neutral[500] }]}
             >
-              Your task list will appear here
+              Your tags will appear here
             </Text>
           </View>
         </View>
@@ -67,14 +53,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: 'Inter-Bold',
     marginTop: 16,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
   },
   placeholder: {
     flex: 1,

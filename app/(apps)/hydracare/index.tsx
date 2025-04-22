@@ -333,6 +333,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingTop: Platform.OS === 'ios' ? 8 : 20,
     marginBottom: 5,
+    alignItems: 'center',
   },
   greeting: {
     fontSize: 15,
@@ -401,7 +402,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 240,
     height: 160,
   },
   correctionText: {
