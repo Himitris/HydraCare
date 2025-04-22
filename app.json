@@ -18,11 +18,19 @@
     },
     "updates": {
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/a3956965-992c-4084-8d70-27f5c02de8ac"
+      "url": "https://u.expo.dev/a3956965-992c-4084-8d70-27f5c02de8ac",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     },
     "plugins": [
       "expo-router",
-      "expo-updates"
+      [
+        "expo-updates",
+        {
+          "username": "himitris"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -39,7 +47,7 @@
       "package": "com.himitris.HydraCare"
     },
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "sdkVersion"
     }
   }
 }

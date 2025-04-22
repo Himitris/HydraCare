@@ -1,0 +1,6 @@
+{
+  "channel": "preview",
+  "runtimeVersion": {
+    "policy": "sdkVersion"
+  }
+}
