@@ -37,7 +37,7 @@ export default function TodoLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tasks',
+          title: 'Tâches',
           tabBarIcon: ({ color, size }) => (
             <CheckSquare color={color} size={size} />
           ),
@@ -47,7 +47,7 @@ export default function TodoLayout() {
       <Tabs.Screen
         name="calendar"
         options={{
-          title: 'Calendar',
+          title: 'Calendrier',
           tabBarIcon: ({ color, size }) => (
             <Calendar color={color} size={size} />
           ),
@@ -57,7 +57,7 @@ export default function TodoLayout() {
       <Tabs.Screen
         name="tags"
         options={{
-          title: 'Tags',
+          title: 'Étiquettes',
           tabBarIcon: ({ color, size }) => <Tag color={color} size={size} />,
         }}
       />

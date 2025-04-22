@@ -402,7 +402,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    height: 160,
+    marginTop: 30,
+    height: 110,
   },
   correctionText: {
     fontSize: 13,

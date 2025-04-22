@@ -2,16 +2,13 @@ import React, { useState } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
-  View,
   Platform,
-  Text,
   Dimensions,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
@@ -281,9 +278,6 @@ const AppSwitcher = () => {
                     {app.icon}
                   </LinearGradient>
                 </TouchableOpacity>
-                <Text style={[styles.optionLabel, { color: colors.text }]}>
-                  {app.label}
-                </Text>
               </Animated.View>
             ))}
           </Animated.View>

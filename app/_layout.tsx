@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppContextProvider, useAppContext } from '@/context/AppContext';
+import { RunningContextProvider } from '@/context/RunningContext';
 import AppSwitcher from './AppSwitcher';
 import { initializeI18n } from '@/i18n';
 import {
@@ -82,7 +83,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
       <AppContextProvider>
-        <RootLayoutContent />
+        <RunningContextProvider>
+          <RootLayoutContent />
+        </RunningContextProvider>
       </AppContextProvider>
     </GestureHandlerRootView>
   );

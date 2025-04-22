@@ -41,22 +41,6 @@ export default function RunningLayout() {
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
-
-      <Tabs.Screen
-        name="routes"
-        options={{
-          title: 'Routes',
-          tabBarIcon: ({ color, size }) => <Map color={color} size={size} />,
-        }}
-      />
-
-      <Tabs.Screen
-        name="achievements"
-        options={{
-          title: 'Achievements',
-          tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} />,
-        }}
-      />
     </Tabs>
   );
 }
