@@ -160,6 +160,7 @@ export class NotificationService {
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: 3,
       },
     });
@@ -225,6 +226,7 @@ export class NotificationService {
                 priority: Notifications.AndroidNotificationPriority.HIGH,
               },
               trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
                 seconds: delaySeconds,
               },
             });

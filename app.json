@@ -29,6 +29,9 @@
       "eas": {
         "projectId": "a3956965-992c-4084-8d70-27f5c02de8ac"
       }
+    },
+    "android": {
+      "package": "com.himitris.HydraCare"
     }
   }
 }

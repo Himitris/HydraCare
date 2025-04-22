@@ -27,6 +27,18 @@ import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { useTranslation } from '@/i18n/hooks/useTranslation';
 
+type ChartDataItem = {
+  date: Date;
+  label: string;
+  shortLabel?: string; // Optionnel car utilisé uniquement en mode 'week'
+  amount: number;
+  percentage: number;
+  isToday: boolean;
+  isSelected: boolean;
+  isFuture: boolean;
+  average?: number; // Optionnel car utilisé uniquement en mode 'month'
+};
+
 // Get window dimensions
 const { width } = Dimensions.get('window');
 
@@ -56,11 +68,10 @@ export default function DailyHistoryChart() {
   };
 
   // Generate data for the selected period
-  const generateChartData = () => {
-    const data = [];
+  const generateChartData = (): ChartDataItem[] => {
+    const data: ChartDataItem[] = [];
 
     if (viewMode === 'week') {
-      // Start from Monday of the selected week
       const weekStart = startOfWeek(selectedDate, { weekStartsOn });
 
       for (let i = 0; i < 7; i++) {
@@ -68,7 +79,6 @@ export default function DailyHistoryChart() {
         const dateKey = `${date.getFullYear()}-${
           date.getMonth() + 1
         }-${date.getDate()}`;
-
         const dayIntake = history[dateKey] || [];
         const totalAmount = dayIntake.reduce(
           (sum, item) => sum + item.amount,
@@ -81,8 +91,8 @@ export default function DailyHistoryChart() {
 
         data.push({
           date,
-          label: format(date, 'EEEE', { locale: fr }), // Full day name in French
-          shortLabel: format(date, 'EEEEE', { locale: fr }), // Short day name in French (L, M, M, J, V, S, D)
+          label: format(date, 'EEEE', { locale: fr }),
+          shortLabel: format(date, 'EEEEE', { locale: fr }),
           amount: totalAmount,
           percentage,
           isToday: isToday(date),
@@ -91,7 +101,6 @@ export default function DailyHistoryChart() {
         });
       }
     } else {
-      // Generate monthly data by weeks
       const monthStart = startOfMonth(selectedDate);
       const monthEnd = endOfMonth(selectedDate);
       const weeksInMonth = eachWeekOfInterval(
@@ -103,7 +112,6 @@ export default function DailyHistoryChart() {
         let weekTotal = 0;
         let daysWithData = 0;
 
-        // Calculate total for the week
         for (let i = 0; i < 7; i++) {
           const date = addDays(weekStart, i);
           if (date >= monthStart && date <= monthEnd) {
@@ -130,7 +138,7 @@ export default function DailyHistoryChart() {
           date: weekStart,
           label: `S${index + 1}`,
           amount: weekTotal,
-          average: weekAverage,
+          average: weekAverage, // Ajout de la propriété average
           percentage,
           isToday: isSameWeek(weekStart, new Date(), { weekStartsOn }),
           isSelected: isSameWeek(weekStart, selectedDate, { weekStartsOn }),
@@ -142,7 +150,7 @@ export default function DailyHistoryChart() {
     return data;
   };
 
-  const chartData = generateChartData();
+  const chartData: ChartDataItem[] = generateChartData();
 
   // Find max value for scaling
   const maxPercentage = Math.max(...chartData.map((d) => d.percentage), 100);
@@ -413,7 +421,7 @@ export default function DailyHistoryChart() {
                   style={[styles.amountLabel, { color: colors.primary[600] }]}
                 >
                   {viewMode === 'month'
-                    ? `${Math.round(item.average)}ml/j`
+                    ? `${Math.round(item.average ?? 0)}ml/j`
                     : `${Math.round(item.percentage)}%`}
                 </Text>
               )}
