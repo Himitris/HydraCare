@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, AppState } from 'react-native';
 import { changeLanguage } from '@/i18n';
@@ -84,21 +90,83 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const [history, setHistory] = useState<Record<string, WaterIntake[]>>({});
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const notificationSubscriptionsRef = useRef<any>(null);
+  const notificationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const notificationInitializedRef = useRef(false);
 
   // Calculate daily progress
   const dailyProgress =
     todayIntake.reduce((total, item) => total + item.amount, 0) /
     settings.dailyGoal;
 
+  // Clean up notification subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationSubscriptionsRef.current) {
+        notificationSubscriptionsRef.current.subscription?.remove();
+        notificationSubscriptionsRef.current.interactionSubscription?.remove();
+      }
+      if (notificationUpdateTimeoutRef.current) {
+        clearTimeout(notificationUpdateTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Initialize notifications once after app loads
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      if (
+        !isLoading &&
+        !notificationInitializedRef.current &&
+        settings.remindersEnabled
+      ) {
+        const totalIntake = todayIntake.reduce(
+          (total, item) => total + item.amount,
+          0
+        );
+
+        const subscriptions = await NotificationService.initialize(
+          settings,
+          totalIntake
+        );
+        if (subscriptions) {
+          notificationSubscriptionsRef.current = subscriptions;
+          notificationInitializedRef.current = true;
+        }
+      }
+    };
+
+    initializeNotifications();
+  }, [isLoading, settings.remindersEnabled]);
+
   // Update notifications when water intake changes (only if notifications are enabled)
   useEffect(() => {
-    if (isLoading || !settings.remindersEnabled) return;
+    if (
+      isLoading ||
+      !settings.remindersEnabled ||
+      !notificationInitializedRef.current
+    )
+      return;
 
-    const totalIntake = todayIntake.reduce(
-      (total, item) => total + item.amount,
-      0
-    );
-    NotificationService.checkAndUpdateNotifications(settings, totalIntake);
+    // Clear any pending timeout
+    if (notificationUpdateTimeoutRef.current) {
+      clearTimeout(notificationUpdateTimeoutRef.current);
+    }
+
+    // Debounce the notification update to avoid multiple calls
+    notificationUpdateTimeoutRef.current = setTimeout(() => {
+      const totalIntake = todayIntake.reduce(
+        (total, item) => total + item.amount,
+        0
+      );
+      NotificationService.checkAndUpdateNotifications(settings, totalIntake);
+    }, 5000); // Increased debounce time to 5 seconds
+
+    return () => {
+      if (notificationUpdateTimeoutRef.current) {
+        clearTimeout(notificationUpdateTimeoutRef.current);
+      }
+    };
   }, [todayIntake, settings.remindersEnabled, settings.dailyGoal, isLoading]);
 
   // Save all data when app state changes (going to background)
@@ -164,7 +232,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           await AsyncStorage.setItem('hydracare-today', JSON.stringify([]));
 
           // Reset notifications for the new day (only if enabled)
-          if (settings.remindersEnabled) {
+          if (settings.remindersEnabled && notificationInitializedRef.current) {
             await NotificationService.updateNotificationSchedule(settings, 0);
           }
         }
@@ -291,14 +359,24 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           // Request permissions and initialize notifications
           const hasPermission = await NotificationService.requestPermissions();
           if (hasPermission) {
-            await NotificationService.updateNotificationSchedule(
+            const subscriptions = await NotificationService.initialize(
               updatedSettings,
               totalIntake
             );
+            if (subscriptions) {
+              notificationSubscriptionsRef.current = subscriptions;
+              notificationInitializedRef.current = true;
+            }
           }
         } else {
           // Cancel all notifications if disabled
           await NotificationService.cancelAllScheduledNotificationsAsync();
+          if (notificationSubscriptionsRef.current) {
+            notificationSubscriptionsRef.current.subscription?.remove();
+            notificationSubscriptionsRef.current.interactionSubscription?.remove();
+            notificationSubscriptionsRef.current = null;
+          }
+          notificationInitializedRef.current = false;
         }
       }
     } catch (error) {
