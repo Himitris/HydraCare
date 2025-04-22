@@ -7,6 +7,7 @@ import {
   Platform,
   Dimensions,
   Switch,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +26,7 @@ import ZenButton from '@/components/ZenButton';
 import { Minus, CheckCircle } from 'lucide-react-native';
 import { TouchableOpacity } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,6 +35,7 @@ export default function HomeScreen() {
     useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [correctionMode, setCorrectionMode] = useState(false);
+  const { t } = useTranslation();
 
   // Animations
   const backgroundOpacity = useSharedValue(0.8);
@@ -74,11 +77,11 @@ export default function HomeScreen() {
 
   // Zen quotes that rotate daily
   const zenQuotes = [
-    'Be like water, flowing effortlessly through life',
-    'Still water runs deep',
-    "Water is life's matter and matrix",
-    'The softest thing overcomes the hardest',
-    'When the water is calm, clarity comes',
+    t('quotes.q1'),
+    t('quotes.q2'),
+    t('quotes.q3'),
+    t('quotes.q4'),
+    t('quotes.q5'),
   ];
 
   const quoteIndex = new Date().getDay() % zenQuotes.length;
@@ -111,16 +114,13 @@ export default function HomeScreen() {
 
   const handleWaterChange = (amount: number) => {
     if (correctionMode) {
-      // Prevent going below 0
       const currentTotal = dailyProgress * settings.dailyGoal;
       if (currentTotal - amount >= 0) {
         addWaterIntake(-amount);
       }
     } else {
-      // Prevent going above goal (or show celebration if we do)
       const currentTotal = dailyProgress * settings.dailyGoal;
       if (currentTotal + amount <= settings.dailyGoal * 1.1) {
-        // Allow 10% over
         addWaterIntake(amount);
       }
     }
@@ -163,18 +163,13 @@ export default function HomeScreen() {
         <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
         <View style={styles.content}>
-          {/* Zen header */}
+          {/* Logo instead of text header */}
           <View style={styles.header}>
-            <Text style={[styles.greeting, { color: colors.neutral[600] }]}>
-              {new Date().getHours() < 12
-                ? 'Good morning'
-                : new Date().getHours() < 18
-                ? 'Good afternoon'
-                : 'Good evening'}
-            </Text>
-            <Text style={[styles.mainText, { color: colors.text }]}>
-              {goalReached ? 'Goal Achieved! 🎉' : 'Stay hydrated'}
-            </Text>
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Main glass animation */}
@@ -192,7 +187,7 @@ export default function HomeScreen() {
                 {settings.preferredUnit}
               </Text>
               <Text style={[styles.goalText, { color: colors.neutral[400] }]}>
-                of {formattedGoal}
+                {t('home.of')} {formattedGoal}
               </Text>
             </View>
 
@@ -205,7 +200,7 @@ export default function HomeScreen() {
                     { color: colors.success[600] },
                   ]}
                 >
-                  Well done! You've reached your daily hydration goal
+                  {t('home.wellDone')}
                 </Text>
               </View>
             )}
@@ -246,7 +241,7 @@ export default function HomeScreen() {
                     },
                   ]}
                 >
-                  Correction
+                  {t('home.correction')}
                 </Text>
               </View>
               <Switch
@@ -273,28 +268,28 @@ export default function HomeScreen() {
             <View style={styles.buttonRow}>
               <ZenButton
                 amount={200}
-                label="Cup"
+                label={t('home.cup')}
                 onPress={() => handleWaterChange(200)}
                 correctionMode={correctionMode}
                 compact={true}
               />
               <ZenButton
                 amount={300}
-                label="Glass"
+                label={t('home.glass')}
                 onPress={() => handleWaterChange(300)}
                 correctionMode={correctionMode}
                 compact={true}
               />
               <ZenButton
                 amount={500}
-                label="Bottle"
+                label={t('home.bottle')}
                 onPress={() => handleWaterChange(500)}
                 correctionMode={correctionMode}
                 compact={true}
               />
               <ZenButton
                 amount={1000}
-                label="Large"
+                label={t('home.large')}
                 onPress={() => handleWaterChange(1000)}
                 correctionMode={correctionMode}
                 compact={true}
@@ -404,6 +399,10 @@ const styles = StyleSheet.create({
   correctionTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  logo: {
+    width: 240,
+    height: 160,
   },
   correctionText: {
     fontSize: 13,

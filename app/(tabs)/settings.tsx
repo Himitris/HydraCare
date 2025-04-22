@@ -9,17 +9,39 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
-import { Moon, Sun, Bell, BellOff, Scale, Target } from 'lucide-react-native';
+import {
+  Moon,
+  Sun,
+  Bell,
+  BellOff,
+  Scale,
+  Target,
+  Globe,
+  RotateCcw,
+  AlertCircle,
+} from 'lucide-react-native';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
+import { changeLanguage } from '@/i18n';
+import { NotificationService } from '@/services/NotificationService';
 
 export default function SettingsScreen() {
-  const { settings, updateSettings, toggleDarkMode, isDarkMode } =
-    useAppContext();
+  const {
+    settings,
+    updateSettings,
+    toggleDarkMode,
+    isDarkMode,
+    clearHistory,
+    resetTodayIntake,
+    todayIntake,
+  } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalInput, setGoalInput] = useState(settings.dailyGoal.toString());
+  const { t } = useTranslation();
 
   const handleSaveGoal = () => {
     const newGoal = parseInt(goalInput);
@@ -35,10 +57,71 @@ export default function SettingsScreen() {
       : `${Math.round(settings.dailyGoal * 0.033814)} oz`;
   };
 
+  const handleLanguageChange = async () => {
+    const newLanguage = settings.language === 'fr' ? 'en' : 'fr';
+    await changeLanguage(newLanguage);
+    updateSettings({ language: newLanguage });
+  };
+
+  const handleResetData = () => {
+    Alert.alert(
+      'Reset All Data',
+      'Are you sure you want to reset all data? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            await clearHistory();
+            await resetTodayIntake();
+            Alert.alert('Success', 'All data has been reset.');
+          },
+        },
+      ]
+    );
+  };
+
+  const testNotification = async () => {
+    try {
+      const hasPermission = await NotificationService.requestPermissions();
+
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Required',
+          'Please enable notifications in your device settings to test this feature.'
+        );
+        return;
+      }
+
+      const totalIntake = todayIntake.reduce(
+        (total, item) => total + item.amount,
+        0
+      );
+      await NotificationService.scheduleTestNotification(
+        settings.dailyGoal,
+        totalIntake
+      );
+
+      Alert.alert(
+        'Notification Test',
+        'A test notification will be shown in 3 seconds. Make sure your device is not in silent mode.'
+      );
+    } catch (error) {
+      console.error('Error testing notification:', error);
+      Alert.alert('Error', 'Could not schedule test notification.');
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          {t('settings.title')}
+        </Text>
 
         <View
           style={[styles.section, { backgroundColor: colors.cardBackground }]}
@@ -52,8 +135,30 @@ export default function SettingsScreen() {
                 <Sun color={colors.text} size={24} />
               )}
               <Text style={[styles.settingText, { color: colors.text }]}>
-                {isDarkMode ? 'Dark Mode' : 'Light Mode'}
+                {isDarkMode ? t('settings.darkMode') : t('settings.lightMode')}
               </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Language setting */}
+          <TouchableOpacity
+            style={styles.setting}
+            onPress={handleLanguageChange}
+          >
+            <View style={styles.settingInfo}>
+              <Globe color={colors.text} size={24} />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: colors.text }]}>
+                  {t('settings.language')}
+                </Text>
+                <Text
+                  style={[styles.settingValue, { color: colors.primary[500] }]}
+                >
+                  {settings.language === 'fr'
+                    ? t('settings.french')
+                    : t('settings.english')}
+                </Text>
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -69,7 +174,7 @@ export default function SettingsScreen() {
               <Target color={colors.text} size={24} />
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: colors.text }]}>
-                  Daily Goal
+                  {t('settings.dailyGoal')}
                 </Text>
                 <Text
                   style={[styles.settingValue, { color: colors.primary[500] }]}
@@ -94,7 +199,19 @@ export default function SettingsScreen() {
                 <BellOff color={colors.text} size={24} />
               )}
               <Text style={[styles.settingText, { color: colors.text }]}>
-                Reminders {settings.remindersEnabled ? 'Enabled' : 'Disabled'}
+                {settings.remindersEnabled
+                  ? t('settings.remindersEnabled')
+                  : t('settings.remindersDisabled')}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Test notification */}
+          <TouchableOpacity style={styles.setting} onPress={testNotification}>
+            <View style={styles.settingInfo}>
+              <AlertCircle color={colors.text} size={24} />
+              <Text style={[styles.settingText, { color: colors.text }]}>
+                Test Notification
               </Text>
             </View>
           </TouchableOpacity>
@@ -111,7 +228,17 @@ export default function SettingsScreen() {
             <View style={styles.settingInfo}>
               <Scale color={colors.text} size={24} />
               <Text style={[styles.settingText, { color: colors.text }]}>
-                Unit: {settings.preferredUnit.toUpperCase()}
+                {t('settings.unit')}: {settings.preferredUnit.toUpperCase()}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Reset data */}
+          <TouchableOpacity style={styles.setting} onPress={handleResetData}>
+            <View style={styles.settingInfo}>
+              <RotateCcw color={colors.error[500]} size={24} />
+              <Text style={[styles.settingText, { color: colors.error[500] }]}>
+                Reset All Data
               </Text>
             </View>
           </TouchableOpacity>
@@ -136,7 +263,7 @@ export default function SettingsScreen() {
             ]}
           >
             <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Set Daily Goal
+              {t('settings.dailyGoal')}
             </Text>
 
             <View style={styles.inputContainer}>
@@ -171,7 +298,7 @@ export default function SettingsScreen() {
                 onPress={() => setShowGoalModal(false)}
               >
                 <Text style={[styles.buttonText, { color: colors.text }]}>
-                  Cancel
+                  {t('common.cancel')}
                 </Text>
               </TouchableOpacity>
 
@@ -184,7 +311,7 @@ export default function SettingsScreen() {
                 onPress={handleSaveGoal}
               >
                 <Text style={[styles.buttonText, { color: 'white' }]}>
-                  Save
+                  {t('common.save')}
                 </Text>
               </TouchableOpacity>
             </View>

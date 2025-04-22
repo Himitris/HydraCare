@@ -7,18 +7,20 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts
+  useFonts,
 } from '@expo-google-fonts/inter';
 import { SplashScreen } from 'expo-router';
 import { Platform } from 'react-native';
 import { AppContextProvider } from '@/context/AppContext';
+import { initializeI18n } from '@/i18n';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useFrameworkReady();
-  
+  const [isI18nInitialized, setIsI18nInitialized] = useState(false);
+
   const [loaded, error] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
@@ -27,13 +29,26 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (loaded || error) {
-      // Hide the splash screen after fonts have loaded
+    const initApp = async () => {
+      await initializeI18n();
+      setIsI18nInitialized(true);
+    };
+
+    initApp();
+  }, []);
+
+  useEffect(() => {
+    if ((loaded || error) && isI18nInitialized) {
+      // Hide the splash screen after fonts have loaded and i18n is initialized
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded, error, isI18nInitialized]);
 
   if (!loaded && !error) {
+    return null;
+  }
+
+  if (!isI18nInitialized) {
     return null;
   }
 

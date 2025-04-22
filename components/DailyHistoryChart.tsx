@@ -12,19 +12,20 @@ import {
   subDays,
   isSameDay,
   startOfWeek,
+  endOfWeek,
   addDays,
   isToday,
+  isSameWeek,
+  startOfMonth,
+  endOfMonth,
+  eachWeekOfInterval,
 } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react-native';
-import Animated, {
-  FadeInDown,
-  FadeOutUp,
-  useAnimatedStyle,
-  withSpring,
-  interpolate,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
 
 // Get window dimensions
 const { width } = Dimensions.get('window');
@@ -34,14 +35,33 @@ export default function DailyHistoryChart() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const { t } = useTranslation();
+
+  // Configure week to start on Monday
+  const weekStartsOn = 1; // Monday
+
+  // Check if we can navigate forward
+  const canNavigateForward = () => {
+    if (viewMode === 'week') {
+      const nextWeekStart = addDays(
+        startOfWeek(selectedDate, { weekStartsOn }),
+        7
+      );
+      const currentWeekStart = startOfWeek(new Date(), { weekStartsOn });
+      return nextWeekStart.getTime() <= currentWeekStart.getTime();
+    } else {
+      const nextMonthStart = addDays(startOfMonth(selectedDate), 32);
+      return nextMonthStart < new Date();
+    }
+  };
 
   // Generate data for the selected period
   const generateChartData = () => {
     const data = [];
 
     if (viewMode === 'week') {
-      // Start from Sunday of the selected week
-      const weekStart = startOfWeek(selectedDate);
+      // Start from Monday of the selected week
+      const weekStart = startOfWeek(selectedDate, { weekStartsOn });
 
       for (let i = 0; i < 7; i++) {
         const date = addDays(weekStart, i);
@@ -61,41 +81,62 @@ export default function DailyHistoryChart() {
 
         data.push({
           date,
-          label: format(date, 'EEE'),
-          shortLabel: format(date, 'E'),
+          label: format(date, 'EEEE', { locale: fr }), // Full day name in French
+          shortLabel: format(date, 'EEEEE', { locale: fr }), // Short day name in French (L, M, M, J, V, S, D)
           amount: totalAmount,
           percentage,
           isToday: isToday(date),
           isSelected: isSameDay(date, selectedDate),
+          isFuture: date > new Date(),
         });
       }
     } else {
-      // Generate month data (last 30 days)
-      for (let i = 29; i >= 0; i--) {
-        const date = subDays(selectedDate, i);
-        const dateKey = `${date.getFullYear()}-${
-          date.getMonth() + 1
-        }-${date.getDate()}`;
+      // Generate monthly data by weeks
+      const monthStart = startOfMonth(selectedDate);
+      const monthEnd = endOfMonth(selectedDate);
+      const weeksInMonth = eachWeekOfInterval(
+        { start: monthStart, end: monthEnd },
+        { weekStartsOn }
+      );
 
-        const dayIntake = history[dateKey] || [];
-        const totalAmount = dayIntake.reduce(
-          (sum, item) => sum + item.amount,
-          0
-        );
+      weeksInMonth.forEach((weekStart, index) => {
+        let weekTotal = 0;
+        let daysWithData = 0;
+
+        // Calculate total for the week
+        for (let i = 0; i < 7; i++) {
+          const date = addDays(weekStart, i);
+          if (date >= monthStart && date <= monthEnd) {
+            const dateKey = `${date.getFullYear()}-${
+              date.getMonth() + 1
+            }-${date.getDate()}`;
+            const dayIntake = history[dateKey] || [];
+            const dayTotal = dayIntake.reduce(
+              (sum, item) => sum + item.amount,
+              0
+            );
+            weekTotal += dayTotal;
+            if (dayTotal > 0) daysWithData++;
+          }
+        }
+
+        const weekAverage = daysWithData > 0 ? weekTotal / daysWithData : 0;
         const percentage = Math.min(
-          (totalAmount / settings.dailyGoal) * 100,
+          (weekAverage / settings.dailyGoal) * 100,
           150
         );
 
         data.push({
-          date,
-          label: format(date, 'd'),
-          amount: totalAmount,
+          date: weekStart,
+          label: `S${index + 1}`,
+          amount: weekTotal,
+          average: weekAverage,
           percentage,
-          isToday: isToday(date),
-          isSelected: isSameDay(date, selectedDate),
+          isToday: isSameWeek(weekStart, new Date(), { weekStartsOn }),
+          isSelected: isSameWeek(weekStart, selectedDate, { weekStartsOn }),
+          isFuture: weekStart > new Date(),
         });
-      }
+      });
     }
 
     return data;
@@ -110,37 +151,78 @@ export default function DailyHistoryChart() {
   // Navigate weeks/months
   const navigateBack = () => {
     setSelectedDate((prev) =>
-      viewMode === 'week' ? subDays(prev, 7) : subDays(prev, 30)
+      viewMode === 'week' ? subDays(prev, 7) : subDays(startOfMonth(prev), 1)
     );
   };
 
   const navigateForward = () => {
-    const newDate =
-      viewMode === 'week'
-        ? addDays(selectedDate, 7)
-        : addDays(selectedDate, 30);
-    if (!isToday(newDate) && newDate < new Date()) {
-      setSelectedDate(newDate);
+    if (canNavigateForward()) {
+      if (viewMode === 'week') {
+        const nextWeekStart = addDays(
+          startOfWeek(selectedDate, { weekStartsOn }),
+          7
+        );
+        const currentWeekStart = startOfWeek(new Date(), { weekStartsOn });
+
+        if (nextWeekStart.getTime() >= currentWeekStart.getTime()) {
+          setSelectedDate(new Date());
+        } else {
+          setSelectedDate((prev) => addDays(prev, 7));
+        }
+      } else {
+        const nextMonth = addDays(startOfMonth(selectedDate), 32);
+        setSelectedDate(startOfMonth(nextMonth));
+      }
     }
   };
 
-  // Get selected day details
-  const getSelectedDayDetails = () => {
-    const dateKey = `${selectedDate.getFullYear()}-${
-      selectedDate.getMonth() + 1
-    }-${selectedDate.getDate()}`;
-    const dayIntake = history[dateKey] || [];
-    const totalAmount = dayIntake.reduce((sum, item) => sum + item.amount, 0);
-
-    return {
-      dayIntake,
-      totalAmount,
-      date: selectedDate,
-      percentage: (totalAmount / settings.dailyGoal) * 100,
-    };
+  // Navigate to today
+  const navigateToToday = () => {
+    setSelectedDate(new Date());
   };
 
-  const selectedDayDetails = getSelectedDayDetails();
+  // Get selected day/week details
+  const getSelectedDetails = () => {
+    if (viewMode === 'week') {
+      const dateKey = `${selectedDate.getFullYear()}-${
+        selectedDate.getMonth() + 1
+      }-${selectedDate.getDate()}`;
+      const dayIntake = history[dateKey] || [];
+      const totalAmount = dayIntake.reduce((sum, item) => sum + item.amount, 0);
+
+      return {
+        dayIntake,
+        totalAmount,
+        date: selectedDate,
+        percentage: (totalAmount / settings.dailyGoal) * 100,
+      };
+    } else {
+      // For month view, show week details
+      const weekStart = startOfWeek(selectedDate, { weekStartsOn });
+      const weekEnd = endOfWeek(selectedDate, { weekStartsOn });
+      let weekIntake: any[] = [];
+      let weekTotal = 0;
+
+      for (let date = weekStart; date <= weekEnd; date = addDays(date, 1)) {
+        const dateKey = `${date.getFullYear()}-${
+          date.getMonth() + 1
+        }-${date.getDate()}`;
+        const dayIntake = history[dateKey] || [];
+        weekIntake = [...weekIntake, ...dayIntake];
+        weekTotal += dayIntake.reduce((sum, item) => sum + item.amount, 0);
+      }
+
+      return {
+        dayIntake: weekIntake,
+        totalAmount: weekTotal,
+        date: weekStart,
+        percentage: (weekTotal / (settings.dailyGoal * 7)) * 100,
+        isWeek: true,
+      };
+    }
+  };
+
+  const selectedDetails = getSelectedDetails();
 
   return (
     <View style={styles.container}>
@@ -153,9 +235,39 @@ export default function DailyHistoryChart() {
         <View style={styles.titleContainer}>
           <Text style={[styles.title, { color: colors.text }]}>
             {viewMode === 'week'
-              ? `Week of ${format(startOfWeek(selectedDate), 'MMM d')}`
-              : format(selectedDate, 'MMMM yyyy')}
+              ? `${format(
+                  startOfWeek(selectedDate, { weekStartsOn }),
+                  'd MMM',
+                  { locale: fr }
+                )} - ${format(
+                  endOfWeek(selectedDate, { weekStartsOn }),
+                  'd MMM',
+                  { locale: fr }
+                )}`
+              : format(selectedDate, 'MMMM yyyy', { locale: fr })}
           </Text>
+
+          {/* Today button */}
+          {((viewMode === 'week' &&
+            !isSameWeek(selectedDate, new Date(), { weekStartsOn })) ||
+            (viewMode === 'month' &&
+              format(selectedDate, 'MM-yyyy') !==
+                format(new Date(), 'MM-yyyy'))) && (
+            <TouchableOpacity
+              style={[
+                styles.todayButton,
+                { backgroundColor: colors.primary[100] },
+              ]}
+              onPress={navigateToToday}
+            >
+              <Text
+                style={[styles.todayButtonText, { color: colors.primary[600] }]}
+              >
+                {t('common.today')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.viewToggle}>
             <TouchableOpacity
               style={[
@@ -170,7 +282,7 @@ export default function DailyHistoryChart() {
                   { color: viewMode === 'week' ? 'white' : colors.text },
                 ]}
               >
-                Week
+                {t('history.week')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -188,13 +300,17 @@ export default function DailyHistoryChart() {
                   { color: viewMode === 'month' ? 'white' : colors.text },
                 ]}
               >
-                Month
+                {t('history.month')}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <TouchableOpacity onPress={navigateForward} style={styles.navButton}>
+        <TouchableOpacity
+          onPress={navigateForward}
+          style={[styles.navButton, !canNavigateForward() && { opacity: 0.3 }]}
+          disabled={!canNavigateForward()}
+        >
           <ChevronRight size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
@@ -208,17 +324,18 @@ export default function DailyHistoryChart() {
         <View
           style={[
             styles.chartContainer,
-            viewMode === 'month' && { width: width * 2 },
+            viewMode === 'month' && { width: '100%', paddingHorizontal: 10 },
           ]}
         >
-          {chartData.map((day, index) => (
+          {chartData.map((item, index) => (
             <TouchableOpacity
               key={index}
               style={[
                 styles.barContainer,
-                viewMode === 'month' && { width: (width * 2) / 30 },
+                viewMode === 'month' && { flex: 1, marginHorizontal: 4 },
               ]}
-              onPress={() => setSelectedDate(day.date)}
+              onPress={() => !item.isFuture && setSelectedDate(item.date)}
+              disabled={item.isFuture}
             >
               {/* Bar */}
               <View style={styles.barWrapper}>
@@ -226,22 +343,29 @@ export default function DailyHistoryChart() {
                   style={[
                     styles.barBackground,
                     { backgroundColor: colors.neutral[200] },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.bar,
-                    {
-                      height: `${(day.percentage / maxPercentage) * 100}%`,
-                      backgroundColor: day.isSelected
-                        ? colors.primary[600]
-                        : day.isToday
-                        ? colors.primary[500]
-                        : colors.primary[400],
+                    item.isToday && {
+                      backgroundColor: colors.primary[100],
+                      borderWidth: 2,
+                      borderColor: colors.primary[500],
                     },
                   ]}
                 />
-                {day.percentage > 100 && (
+                {!item.isFuture && (
+                  <View
+                    style={[
+                      styles.bar,
+                      {
+                        height: `${(item.percentage / maxPercentage) * 100}%`,
+                        backgroundColor: item.isSelected
+                          ? colors.primary[600]
+                          : item.isToday
+                          ? colors.primary[500]
+                          : colors.primary[400],
+                      },
+                    ]}
+                  />
+                )}
+                {item.percentage > 100 && !item.isFuture && (
                   <View
                     style={[
                       styles.overflowIndicator,
@@ -251,31 +375,46 @@ export default function DailyHistoryChart() {
                 )}
               </View>
 
-              {/* Day label */}
+              {/* Label */}
               <Text
                 style={[
                   styles.dayLabel,
                   {
-                    color:
-                      day.isSelected || day.isToday
-                        ? colors.primary[500]
-                        : colors.neutral[500],
+                    color: item.isSelected
+                      ? colors.primary[600]
+                      : item.isToday
+                      ? colors.primary[500]
+                      : item.isFuture
+                      ? colors.neutral[300]
+                      : colors.neutral[500],
                     fontFamily:
-                      day.isSelected || day.isToday
+                      item.isSelected || item.isToday
                         ? 'Inter-Bold'
                         : 'Inter-Regular',
                   },
                 ]}
               >
-                {viewMode === 'week' ? day.shortLabel : day.label}
+                {viewMode === 'week' ? item.shortLabel : item.label}
               </Text>
 
+              {/* Today indicator */}
+              {item.isToday && (
+                <View
+                  style={[
+                    styles.todayIndicator,
+                    { backgroundColor: colors.primary[500] },
+                  ]}
+                />
+              )}
+
               {/* Amount */}
-              {day.isSelected && (
+              {item.isSelected && !item.isFuture && (
                 <Text
                   style={[styles.amountLabel, { color: colors.primary[600] }]}
                 >
-                  {Math.round(day.percentage)}%
+                  {viewMode === 'month'
+                    ? `${Math.round(item.average)}ml/j`
+                    : `${Math.round(item.percentage)}%`}
                 </Text>
               )}
             </TouchableOpacity>
@@ -283,7 +422,7 @@ export default function DailyHistoryChart() {
         </View>
       </ScrollView>
 
-      {/* Selected day details */}
+      {/* Selected day/week details */}
       <Animated.View
         entering={FadeInDown}
         exiting={FadeOutUp}
@@ -292,14 +431,24 @@ export default function DailyHistoryChart() {
         <View style={styles.detailsHeader}>
           <View>
             <Text style={[styles.detailsDate, { color: colors.text }]}>
-              {format(selectedDate, 'EEEE, MMMM d')}
+              {selectedDetails.isWeek
+                ? `${format(selectedDetails.date, 'EEEE d', {
+                    locale: fr,
+                  })} - ${format(
+                    addDays(selectedDetails.date, 6),
+                    'EEEE d MMMM',
+                    { locale: fr }
+                  )}`
+                : format(selectedDetails.date, 'EEEE d MMMM', { locale: fr })}
             </Text>
             <Text
               style={[styles.detailsAmount, { color: colors.primary[500] }]}
             >
               {settings.preferredUnit === 'ml'
-                ? `${selectedDayDetails.totalAmount} ml`
-                : `${Math.round(selectedDayDetails.totalAmount * 0.033814)} oz`}
+                ? `${selectedDetails.totalAmount} ml`
+                : `${Math.round(selectedDetails.totalAmount * 0.033814)} oz`}
+              {selectedDetails.isWeek &&
+                ` (${Math.round(selectedDetails.totalAmount / 7)} ml/jour)`}
             </Text>
           </View>
           <View
@@ -307,7 +456,7 @@ export default function DailyHistoryChart() {
               styles.percentageCircle,
               {
                 backgroundColor:
-                  selectedDayDetails.percentage >= 100
+                  selectedDetails.percentage >= 100
                     ? colors.success[100]
                     : colors.primary[100],
               },
@@ -318,13 +467,13 @@ export default function DailyHistoryChart() {
                 styles.percentageText,
                 {
                   color:
-                    selectedDayDetails.percentage >= 100
+                    selectedDetails.percentage >= 100
                       ? colors.success[600]
                       : colors.primary[600],
                 },
               ]}
             >
-              {Math.round(selectedDayDetails.percentage)}%
+              {Math.round(selectedDetails.percentage)}%
             </Text>
           </View>
         </View>
@@ -332,15 +481,17 @@ export default function DailyHistoryChart() {
         {/* Intake breakdown */}
         <View style={styles.intakeList}>
           <Text style={[styles.intakeTitle, { color: colors.text }]}>
-            Intake log
+            {t('history.intakeLog')}
           </Text>
-          {selectedDayDetails.dayIntake.length > 0 ? (
-            selectedDayDetails.dayIntake.map((item, index) => (
+          {selectedDetails.dayIntake.length > 0 ? (
+            selectedDetails.dayIntake.map((item, index) => (
               <View key={index} style={styles.intakeItem}>
                 <Text
                   style={[styles.intakeTime, { color: colors.neutral[600] }]}
                 >
-                  {format(new Date(item.timestamp), 'h:mm a')}
+                  {format(new Date(item.timestamp), 'EEEE d MMM à H:mm', {
+                    locale: fr,
+                  })}
                 </Text>
                 <Text style={[styles.intakeAmount, { color: colors.text }]}>
                   {item.amount} {item.unit}
@@ -349,7 +500,7 @@ export default function DailyHistoryChart() {
             ))
           ) : (
             <Text style={[styles.noIntake, { color: colors.neutral[500] }]}>
-              No water intake recorded for this day
+              {t('history.noIntakeRecorded')}
             </Text>
           )}
         </View>
@@ -378,6 +529,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     marginBottom: 8,
+  },
+  todayButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  todayButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
   },
   viewToggle: {
     flexDirection: 'row',
@@ -434,6 +595,12 @@ const styles = StyleSheet.create({
   dayLabel: {
     marginTop: 8,
     fontSize: 12,
+  },
+  todayIndicator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 4,
   },
   amountLabel: {
     fontSize: 10,
