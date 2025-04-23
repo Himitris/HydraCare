@@ -25,6 +25,8 @@ import {
   Meh,
   Frown,
   ChevronRight,
+  Edit2,
+  Trash2,
 } from 'lucide-react-native';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
@@ -49,7 +51,14 @@ export default function RunningScreen() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [sessions, setSessions] = useState<RunningSession[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);  
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<RunningSession | null>(
+    null
+  );
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [newSession, setNewSession] = useState<Partial<RunningSession>>({
     date: new Date(),
     feeling: 'good',
@@ -136,17 +145,40 @@ export default function RunningScreen() {
       return;
     }
 
-    const session: RunningSession = {
-      id: Date.now().toString(),
-      date: newSession.date || new Date(),
-      feeling: newSession.feeling || 'good',
-      description: newSession.description.trim(),
-    };
+    // Si editingSessionId existe, on est en mode édition
+    if (editingSessionId) {
+      const updatedSessions = sessions.map((session) => {
+        if (session.id === editingSessionId) {
+          return {
+            ...session,
+            date: newSession.date || new Date(),
+            feeling: newSession.feeling || 'good',
+            description: newSession.description?.trim() || '',
+          };
+        }
+        return session;
+      });
 
-    const updatedSessions = [session, ...sessions];
-    setSessions(updatedSessions);
-    saveSessions(updatedSessions); // Save to AsyncStorage
+      setSessions(updatedSessions);
+      saveSessions(updatedSessions); // Sauvegarder les sessions mises à jour
 
+      // Réinitialiser le mode édition
+      setEditingSessionId(null);
+    } else {
+      // Mode création
+      const session: RunningSession = {
+        id: Date.now().toString(),
+        date: newSession.date || new Date(),
+        feeling: newSession.feeling || 'good',
+        description: newSession.description.trim(),
+      };
+
+      const updatedSessions = [session, ...sessions];
+      setSessions(updatedSessions);
+      saveSessions(updatedSessions); // Sauvegarder les sessions mises à jour
+    }
+
+    // Fermer le modal et réinitialiser le formulaire
     setShowAddModal(false);
     setNewSession({ date: new Date(), feeling: 'good', description: '' });
 
@@ -242,6 +274,11 @@ export default function RunningScreen() {
                     { backgroundColor: colors.cardBackground },
                   ]}
                   activeOpacity={0.8}
+                  onPress={() => {
+                    // Ouvrir le modal d'options personnalisé
+                    setSelectedSession(session);
+                    setShowOptionsModal(true);
+                  }}
                 >
                   <View style={styles.sessionHeader}>
                     <View style={styles.sessionInfo}>
@@ -277,7 +314,63 @@ export default function RunningScreen() {
                         </Text>
                       </View>
                     </View>
-                    <ChevronRight size={20} color={colors.neutral[400]} />
+                    <View style={styles.sessionActions}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          // Préremplir le formulaire avec les données existantes
+                          setNewSession({
+                            date: new Date(session.date),
+                            feeling: session.feeling,
+                            description: session.description,
+                          });
+
+                          // Stocker l'ID de la session en cours d'édition
+                          setEditingSessionId(session.id);
+
+                          // Ouvrir le modal d'édition
+                          setShowAddModal(true);
+                        }}
+                        style={styles.actionButton}
+                      >
+                        <Edit2 size={18} color={colors.secondary[500]} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          // Demander confirmation avant suppression
+                          Alert.alert(
+                            'Confirmation',
+                            'Êtes-vous sûr de vouloir supprimer cette sortie ?',
+                            [
+                              { text: 'Annuler', style: 'cancel' },
+                              {
+                                text: 'Supprimer',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  // Filtrer la session à supprimer
+                                  const updatedSessions = sessions.filter(
+                                    (s) => s.id !== session.id
+                                  );
+                                  setSessions(updatedSessions);
+
+                                  // Sauvegarder les sessions mises à jour
+                                  await saveSessions(updatedSessions);
+
+                                  if (Platform.OS !== 'web') {
+                                    Haptics.notificationAsync(
+                                      Haptics.NotificationFeedbackType.Success
+                                    );
+                                  }
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                        style={styles.actionButton}
+                      >
+                        <Trash2 size={18} color={colors.error[500]} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <Text
                     style={[styles.description, { color: colors.neutral[600] }]}
@@ -323,10 +416,18 @@ export default function RunningScreen() {
             >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  Nouvelle sortie
+                  {editingSessionId ? 'Modifier la sortie' : 'Nouvelle sortie'}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setShowAddModal(false)}
+                  onPress={() => {
+                    setShowAddModal(false);
+                    setEditingSessionId(null); // Réinitialiser l'ID d'édition
+                    setNewSession({
+                      date: new Date(),
+                      feeling: 'good',
+                      description: '',
+                    }); // Réinitialiser le formulaire
+                  }}
                   style={styles.closeButton}
                 >
                   <X size={24} color={colors.text} />
@@ -433,7 +534,11 @@ export default function RunningScreen() {
                   ]}
                   onPress={handleAddSession}
                 >
-                  <Text style={styles.saveButtonText}>Enregistrer</Text>
+                  <Text style={styles.saveButtonText}>
+                    {editingSessionId
+                      ? 'Enregistrer les modifications'
+                      : 'Enregistrer'}
+                  </Text>
                 </TouchableOpacity>
               </ScrollView>
             </Animated.View>
@@ -451,6 +556,338 @@ export default function RunningScreen() {
             locale="fr"
           />
         )}
+
+        {/* Options Modal */}
+        <Modal
+          visible={showOptionsModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowOptionsModal(false)}
+        >
+          <View style={styles.centeredModalContainer}>
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowOptionsModal(false)}
+            />
+
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(200)}
+              style={[
+                styles.optionsModalContent,
+                { backgroundColor: colors.cardBackground },
+              ]}
+            >
+              <Text style={[styles.optionsModalTitle, { color: colors.text }]}>
+                Options
+              </Text>
+              <Text
+                style={[
+                  styles.optionsModalSubtitle,
+                  { color: colors.neutral[500] },
+                ]}
+              >
+                Que souhaitez-vous faire avec cette sortie ?
+              </Text>
+
+              <View style={styles.optionsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    { borderColor: colors.neutral[200] },
+                  ]}
+                  onPress={() => {
+                    setShowOptionsModal(false);
+                    setShowDetailsModal(true);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.optionIconContainer,
+                      { backgroundColor: colors.primary[100] },
+                    ]}
+                  >
+                    <Calendar size={24} color={colors.primary[500]} />
+                  </View>
+                  <Text style={[styles.optionText, { color: colors.text }]}>
+                    Voir les détails
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    { borderColor: colors.neutral[200] },
+                  ]}
+                  onPress={() => {
+                    setShowOptionsModal(false);
+                    if (selectedSession) {
+                      setNewSession({
+                        date: new Date(selectedSession.date),
+                        feeling: selectedSession.feeling,
+                        description: selectedSession.description,
+                      });
+                      setEditingSessionId(selectedSession.id);
+                      setShowAddModal(true);
+                    }
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.optionIconContainer,
+                      { backgroundColor: colors.secondary[100] },
+                    ]}
+                  >
+                    <Edit2 size={24} color={colors.secondary[500]} />
+                  </View>
+                  <Text style={[styles.optionText, { color: colors.text }]}>
+                    Modifier
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    { borderColor: colors.neutral[200] },
+                  ]}
+                  onPress={() => {
+                    setShowOptionsModal(false);
+                    setShowDeleteModal(true);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.optionIconContainer,
+                      { backgroundColor: colors.error[100] },
+                    ]}
+                  >
+                    <Trash2 size={24} color={colors.error[500]} />
+                  </View>
+                  <Text
+                    style={[styles.optionText, { color: colors.error[500] }]}
+                  >
+                    Supprimer
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  { backgroundColor: colors.neutral[200] },
+                ]}
+                onPress={() => setShowOptionsModal(false)}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>
+                  Annuler
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Details Modal */}
+        <Modal
+          visible={showDetailsModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDetailsModal(false)}
+        >
+          <View style={styles.centeredModalContainer}>
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDetailsModal(false)}
+            />
+
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(200)}
+              style={[
+                styles.detailsModalContent,
+                { backgroundColor: colors.cardBackground },
+              ]}
+            >
+              <View style={styles.detailsHeader}>
+                {selectedSession && (
+                  <View
+                    style={[
+                      styles.detailsFeelingIndicator,
+                      {
+                        backgroundColor:
+                          getFeelingColor(selectedSession.feeling) + '20',
+                      },
+                    ]}
+                  >
+                    {getFeelingIcon(selectedSession.feeling)}
+                  </View>
+                )}
+
+                <View style={styles.detailsHeaderText}>
+                  {selectedSession && (
+                    <>
+                      <Text
+                        style={[styles.detailsDate, { color: colors.text }]}
+                      >
+                        {format(
+                          new Date(selectedSession.date),
+                          'EEEE d MMMM yyyy',
+                          {
+                            locale: fr,
+                          }
+                        )}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.detailsFeeling,
+                          {
+                            color: selectedSession
+                              ? getFeelingColor(selectedSession.feeling)
+                              : colors.text,
+                          },
+                        ]}
+                      >
+                        {selectedSession
+                          ? getFeelingLabel(selectedSession.feeling)
+                          : ''}
+                      </Text>
+                    </>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.detailsCloseButton}
+                  onPress={() => setShowDetailsModal(false)}
+                >
+                  <X size={24} color={colors.neutral[500]} />
+                </TouchableOpacity>
+              </View>
+
+              <View
+                style={[
+                  styles.descriptionContainer,
+                  { borderColor: colors.neutral[200] },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.descriptionLabel,
+                    { color: colors.neutral[600] },
+                  ]}
+                >
+                  Description
+                </Text>
+                <Text
+                  style={[styles.detailsDescription, { color: colors.text }]}
+                >
+                  {selectedSession?.description}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.closeDetailsButton,
+                  { backgroundColor: colors.secondary[500] },
+                ]}
+                onPress={() => setShowDetailsModal(false)}
+              >
+                <Text style={styles.closeDetailsButtonText}>Fermer</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          visible={showDeleteModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDeleteModal(false)}
+        >
+          <View style={styles.centeredModalContainer}>
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDeleteModal(false)}
+            />
+
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(200)}
+              style={[
+                styles.deleteModalContent,
+                { backgroundColor: colors.cardBackground },
+              ]}
+            >
+              <View
+                style={[
+                  styles.deleteIconContainer,
+                  { backgroundColor: colors.error[100] },
+                ]}
+              >
+                <Trash2 size={32} color={colors.error[500]} />
+              </View>
+
+              <Text style={[styles.deleteTitle, { color: colors.text }]}>
+                Confirmation
+              </Text>
+
+              <Text
+                style={[styles.deleteMessage, { color: colors.neutral[600] }]}
+              >
+                Êtes-vous sûr de vouloir supprimer cette sortie ? Cette action
+                est irréversible.
+              </Text>
+
+              <View style={styles.deleteButtonsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.deleteButtonCancel,
+                    { backgroundColor: colors.neutral[200] },
+                  ]}
+                  onPress={() => setShowDeleteModal(false)}
+                >
+                  <Text
+                    style={[styles.deleteButtonText, { color: colors.text }]}
+                  >
+                    Annuler
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.deleteButtonConfirm,
+                    { backgroundColor: colors.error[500] },
+                  ]}
+                  onPress={async () => {
+                    if (selectedSession) {
+                      // Filtrer la session à supprimer
+                      const updatedSessions = sessions.filter(
+                        (s) => s.id !== selectedSession.id
+                      );
+                      setSessions(updatedSessions);
+
+                      // Sauvegarder les sessions mises à jour
+                      await saveSessions(updatedSessions);
+
+                      if (Platform.OS !== 'web') {
+                        Haptics.notificationAsync(
+                          Haptics.NotificationFeedbackType.Success
+                        );
+                      }
+                    }
+
+                    setShowDeleteModal(false);
+                    setSelectedSession(null);
+                  }}
+                >
+                  <Text style={styles.deleteButtonConfirmText}>Supprimer</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -541,6 +978,14 @@ const styles = StyleSheet.create({
   sessionInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  sessionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   feelingIndicator: {
     width: 40,
@@ -676,6 +1121,188 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  // Options Modal styles
+  optionsModalContent: {
+    width: width - 60,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  optionsModalTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  optionsModalSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  optionsContainer: {
+    marginBottom: 20,
+  },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  optionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  optionText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+  },
+  cancelButton: {
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  // Details Modal styles
+  detailsModalContent: {
+    width: width - 60,
+    borderRadius: 20,
+    padding: 0,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  detailsFeelingIndicator: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  detailsHeaderText: {
+    flex: 1,
+  },
+  detailsDate: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+  },
+  detailsFeeling: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    marginTop: 4,
+  },
+  detailsCloseButton: {
+    padding: 8,
+  },
+  descriptionContainer: {
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  descriptionLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 8,
+  },
+  detailsDescription: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    lineHeight: 24,
+  },
+  closeDetailsButton: {
+    margin: 20,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  closeDetailsButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  // Delete Modal styles
+  deleteModalContent: {
+    width: width - 60,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  deleteIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  deleteTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    marginBottom: 12,
+  },
+  deleteMessage: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  deleteButtonsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  deleteButtonCancel: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  deleteButtonConfirm: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  deleteButtonConfirmText: {
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',

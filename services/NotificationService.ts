@@ -167,6 +167,7 @@ export class NotificationService {
   }
 
   // Planifier les notifications intelligentes
+  // Planifier les notifications intelligentes
   static async scheduleSmartNotifications(
     dailyGoal: number,
     currentIntake: number
@@ -176,6 +177,15 @@ export class NotificationService {
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinutes = now.getMinutes();
+      const scheduledIdentifiers: string[] = [];
+
+      // Ne pas planifier de notification si l'objectif est presque atteint (moins de 10%)
+      if (remainingWater < dailyGoal * 0.1) {
+        console.log(
+          'Objectif presque atteint, pas de notifications planifiées'
+        );
+        return scheduledIdentifiers;
+      }
 
       // Parcourir les créneaux de notification
       for (const schedule of this.notificationSchedules) {
@@ -186,6 +196,11 @@ export class NotificationService {
           hour > currentHour ||
           (hour === currentHour && minute > currentMinutes)
         ) {
+          // Ne pas planifier de notifications tard le soir (après 21h)
+          if (hour >= 21) {
+            continue;
+          }
+
           const notificationDate = new Date();
           notificationDate.setHours(hour);
           notificationDate.setMinutes(minute);
@@ -216,12 +231,19 @@ export class NotificationService {
               Math.floor((notificationDate.getTime() - now.getTime()) / 1000)
             );
 
+            // Identifiant unique pour cette notification
+            const notificationId = `hydration-${hour}-${minute}-${new Date().toISOString()}`;
+
             // Planifier la notification
-            await Notifications.scheduleNotificationAsync({
+            const identifier = await Notifications.scheduleNotificationAsync({
               content: {
                 title: 'HydraCare - Restez hydraté !',
                 body: adaptedMessage,
-                data: { type: 'hydration', remainingWater },
+                data: {
+                  type: 'hydration',
+                  remainingWater,
+                  notificationId,
+                },
                 sound: true,
                 priority: Notifications.AndroidNotificationPriority.HIGH,
               },
@@ -230,11 +252,26 @@ export class NotificationService {
                 seconds: delaySeconds,
               },
             });
+
+            // Sauvegarder l'identifiant pour pouvoir annuler plus tard si nécessaire
+            scheduledIdentifiers.push(identifier);
+            console.log(
+              `Notification planifiée pour ${hour}:${minute} - ID: ${identifier}`
+            );
           }
         }
       }
+
+      // Enregistrer les notifications planifiées pour éviter les doublons
+      await AsyncStorage.setItem(
+        this.SCHEDULED_NOTIFICATIONS_KEY,
+        JSON.stringify(scheduledIdentifiers)
+      );
+
+      return scheduledIdentifiers;
     } catch (error) {
       console.error('Error scheduling notifications:', error);
+      return [];
     }
   }
 
@@ -275,23 +312,42 @@ export class NotificationService {
       // Si les notifications sont désactivées, annuler toutes les notifications
       if (!settings.remindersEnabled) {
         await this.cancelAllScheduledNotificationsAsync();
-        return;
+        console.log(
+          'Notifications désactivées, toutes les notifications ont été annulées'
+        );
+        return null;
       }
 
-      // Si l'objectif est atteint, envoyer une notification de félicitations
+      // Si l'objectif est atteint, envoyer une notification de félicitations et annuler les autres
       if (currentIntake >= settings.dailyGoal) {
         await this.sendCongratulationsNotification();
         await this.cancelAllScheduledNotificationsAsync();
-        return;
+        console.log('Objectif atteint, notification de félicitations envoyée');
+        return ['congratulations_notification'];
       }
 
-      // Annuler les notifications existantes avant d'en planifier de nouvelles
-      await this.cancelAllScheduledNotificationsAsync();
+      console.log('Planification de nouvelles notifications');
 
-      // Planifier des notifications intelligentes
-      await this.scheduleSmartNotifications(settings.dailyGoal, currentIntake);
+      // Planifier des notifications intelligentes et récupérer leurs identifiants
+      const scheduledIds = await this.scheduleSmartNotifications(
+        settings.dailyGoal,
+        currentIntake
+      );
+
+      // Vérifier si des notifications ont été planifiées
+      if (scheduledIds && scheduledIds.length > 0) {
+        console.log(
+          `${scheduledIds.length} notifications planifiées avec succès`
+        );
+        console.log('Notifications planifiées');
+        return scheduledIds;
+      } else {
+        console.log('Aucune notification planifiée');
+        return null;
+      }
     } catch (error) {
       console.error('Error updating notification schedule:', error);
+      return null;
     }
   }
 
@@ -321,8 +377,10 @@ export class NotificationService {
       if (lastCheck) {
         const lastCheckTime = new Date(lastCheck);
         const now = new Date();
-        if (now.getTime() - lastCheckTime.getTime() < 300000) {
-          // 5 minutes
+        // Limiter à une mise à jour toutes les 30 minutes
+        if (now.getTime() - lastCheckTime.getTime() < 1800000) {
+          // 30 minutes
+          console.log('Mise à jour des notifications ignorée - trop fréquente');
           return;
         }
       }
@@ -331,9 +389,34 @@ export class NotificationService {
         'last_notification_update',
         new Date().toISOString()
       );
-      await this.updateNotificationSchedule(settings, currentIntake);
+
+      // Éviter les appels multiples en parallèle
+      const isUpdating = await AsyncStorage.getItem(
+        'notification_update_in_progress'
+      );
+      if (isUpdating === 'true') {
+        console.log('Une mise à jour des notifications est déjà en cours');
+        return;
+      }
+
+      try {
+        // Marquer comme en cours de mise à jour
+        await AsyncStorage.setItem('notification_update_in_progress', 'true');
+
+        // Annuler les notifications existantes AVANT d'en planifier de nouvelles
+        await this.cancelAllScheduledNotificationsAsync();
+        console.log('Notifications précédentes annulées');
+
+        // Planifier de nouvelles notifications
+        await this.updateNotificationSchedule(settings, currentIntake);
+      } finally {
+        // Marquer comme terminé quelle que soit l'issue
+        await AsyncStorage.removeItem('notification_update_in_progress');
+      }
     } catch (error) {
       console.error('Error checking and updating notifications:', error);
+      // S'assurer que le verrou est libéré en cas d'erreur
+      await AsyncStorage.removeItem('notification_update_in_progress');
     }
   }
 
@@ -343,36 +426,86 @@ export class NotificationService {
     currentIntake: number
   ) {
     try {
-      // Vérifier si c'est un nouveau jour
-      const newDay = await this.isNewDay();
-
-      const hasPermission = await this.requestPermissions();
-      if (!hasPermission || !settings.remindersEnabled) {
-        return;
+      // S'assurer que l'initialisation ne se produit qu'une seule fois par session
+      const initializationInProgress = await AsyncStorage.getItem(
+        'notification_initialization_in_progress'
+      );
+      if (initializationInProgress === 'true') {
+        console.log('Initialisation des notifications déjà en cours');
+        return null;
       }
 
-      // Ne planifier les notifications qu'une fois par jour
-      if (newDay) {
-        await this.saveLastCheck();
-        await this.updateNotificationSchedule(settings, currentIntake);
-      }
-
-      // Écouter les notifications reçues (pour debugging)
-      const subscription = Notifications.addNotificationReceivedListener(
-        (notification) => {
-          console.log('Notification reçue:', notification);
-        }
+      // Marquer l'initialisation comme en cours
+      await AsyncStorage.setItem(
+        'notification_initialization_in_progress',
+        'true'
       );
 
-      // Écouter les interactions avec les notifications
-      const interactionSubscription =
-        Notifications.addNotificationResponseReceivedListener((response) => {
-          console.log('Interaction avec notification:', response);
-        });
+      try {
+        // Vérifier si c'est un nouveau jour
+        const newDay = await this.isNewDay();
 
-      // Retourner les subscriptions pour pouvoir les nettoyer plus tard
-      return { subscription, interactionSubscription };
+        // S'assurer que les permissions sont accordées
+        const hasPermission = await this.requestPermissions();
+        if (!hasPermission || !settings.remindersEnabled) {
+          console.log('Notifications désactivées ou permissions refusées');
+          return null;
+        }
+
+        // Annuler toutes les notifications précédentes pour éviter les doublons
+        await this.cancelAllScheduledNotificationsAsync();
+        console.log('Anciennes notifications annulées');
+
+        // Planifier de nouvelles notifications
+        await this.saveLastCheck();
+        const notificationIds = await this.updateNotificationSchedule(
+          settings,
+          currentIntake
+        );
+        console.log(
+          `${
+            notificationIds
+              ? 'Notifications planifiées'
+              : 'Aucune notification planifiée'
+          }`
+        );
+
+        // Écouter les notifications reçues (pour debugging)
+        const subscription = Notifications.addNotificationReceivedListener(
+          (notification) => {
+            console.log('Notification reçue:', notification);
+
+            // Si l'objectif est atteint, annuler les notifications restantes
+            if (currentIntake >= settings.dailyGoal) {
+              this.cancelAllScheduledNotificationsAsync();
+            }
+          }
+        );
+
+        // Écouter les interactions avec les notifications
+        const interactionSubscription =
+          Notifications.addNotificationResponseReceivedListener((response) => {
+            console.log('Interaction avec notification:', response);
+
+            // Vérifier si c'est une notification d'hydratation
+            const data = response.notification.request.content.data;
+            if (data && data.type === 'hydration') {
+              // On pourrait ici ouvrir l'app directement sur la page d'accueil
+              // pour faciliter l'ajout d'eau
+            }
+          });
+
+        // Retourner les subscriptions pour pouvoir les nettoyer plus tard
+        return { subscription, interactionSubscription };
+      } finally {
+        // Toujours marquer l'initialisation comme terminée
+        await AsyncStorage.removeItem(
+          'notification_initialization_in_progress'
+        );
+      }
     } catch (error) {
+      // En cas d'erreur, s'assurer que le verrou est libéré
+      await AsyncStorage.removeItem('notification_initialization_in_progress');
       console.error('Error initializing notifications:', error);
       return null;
     }

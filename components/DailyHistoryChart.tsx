@@ -363,7 +363,10 @@ export default function DailyHistoryChart() {
                     style={[
                       styles.bar,
                       {
-                        height: `${(item.percentage / maxPercentage) * 100}%`,
+                        height: `${Math.min(
+                          (item.percentage / maxPercentage) * 100,
+                          85
+                        )}%`,
                         backgroundColor: item.isSelected
                           ? colors.primary[600]
                           : item.isToday
@@ -418,7 +421,13 @@ export default function DailyHistoryChart() {
               {/* Amount */}
               {item.isSelected && !item.isFuture && (
                 <Text
-                  style={[styles.amountLabel, { color: colors.primary[600] }]}
+                  style={[
+                    styles.amountLabel,
+                    {
+                      color: colors.primary[600],
+                      top: -20, // Placé au-dessus de la barre
+                    },
+                  ]}
                 >
                   {viewMode === 'month'
                     ? `${Math.round(item.average ?? 0)}ml/j`
@@ -576,7 +585,7 @@ const styles = StyleSheet.create({
   },
   barWrapper: {
     width: 16,
-    height: 120,
+    height: 110, // Réduit de 120 à 110 pour s'assurer que la barre ne dépasse pas
     position: 'relative',
   },
   barBackground: {
@@ -614,6 +623,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Inter-Medium',
     marginTop: 2,
+    position: 'absolute',
+    top: 0,
+    width: '100%',
+    textAlign: 'center',
   },
   detailsCard: {
     marginTop: 16,
