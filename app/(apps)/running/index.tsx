@@ -12,10 +12,19 @@ import {
   TextInput,
   Dimensions,
   Alert,
+  Image,
 } from 'react-native';
+import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  FadeIn,
+  FadeOut,
+  withSpring,
+  useSharedValue,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 import {
   Activity,
   Plus,
@@ -27,13 +36,19 @@ import {
   ChevronRight,
   Edit2,
   Trash2,
+  Filter,
+  Download,
+  BarChart,
+  Clock,
+  Target,
+  Award,
 } from 'lucide-react-native';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
-import { format } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { format, isAfter, isBefore, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width, height } = Dimensions.get('window');
@@ -308,119 +323,213 @@ export default function RunningScreen() {
               </Text>
             </Animated.View>
           ) : (
-            sessions.map((session, index) => (
+            <>
+              {/* Carte de statistiques et d'analyse */}
               <Animated.View
-                key={session.id}
-                entering={FadeInDown.delay(index * 100)}
+                entering={FadeInDown}
+                style={[styles.statsCard, { backgroundColor: colors.cardBackground }]}
               >
-                <TouchableOpacity
-                  style={[
-                    styles.sessionCard,
-                    { backgroundColor: colors.cardBackground },
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    // Ouvrir directement le modal de détails
-                    setSelectedSession(session);
-                    setShowDetailsModal(true);
-                  }}
-                >
-                  <View style={styles.sessionHeader}>
-                    <View style={styles.sessionInfo}>
-                      <View
-                        style={[
-                          styles.feelingIndicator,
-                          {
-                            backgroundColor:
-                              getFeelingColor(session.feeling) + '20',
-                          },
-                        ]}
-                      >
-                        {getFeelingIcon(session.feeling)}
-                      </View>
-                      <View style={styles.sessionTextInfo}>
-                        <Text
-                          style={[
-                            styles.sessionDateText,
-                            { color: colors.text },
-                          ]}
-                        >
-                          {format(new Date(session.date), 'EEEE d MMMM', {
-                            locale: fr,
-                          })}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.feelingText,
-                            { color: getFeelingColor(session.feeling) },
-                          ]}
-                        >
-                          {getFeelingLabel(session.feeling)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.sessionActions}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          // Préremplir le formulaire avec les données existantes, incluant les performances
-                          setNewSession({
-                            date: new Date(session.date),
-                            feeling: session.feeling,
-                            description: session.description,
-                            distance: session.distance,
-                            duration: session.duration,
-                            pace: session.pace,
-                            calories: session.calories,
-                            elevationGain: session.elevationGain,
-                            avgHeartRate: session.avgHeartRate,
-                            maxHeartRate: session.maxHeartRate,
-                          });
-
-                          // Si des détails de performance existent, afficher la section
-                          if (
-                            session.distance ||
-                            session.duration ||
-                            session.pace ||
-                            session.calories ||
-                            session.elevationGain ||
-                            session.avgHeartRate ||
-                            session.maxHeartRate
-                          ) {
-                            setShowPerformanceFields(true);
-                          }
-
-                          // Stocker l'ID de la session en cours d'édition
-                          setEditingSessionId(session.id);
-
-                          // Ouvrir le modal d'édition
-                          setShowAddModal(true);
-                        }}
-                        style={styles.actionButton}
-                      >
-                        <Edit2 size={18} color={colors.secondary[500]} />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        onPress={() => {
-                          // Utiliser le modal personnalisé de suppression
-                          setSelectedSession(session);
-                          setShowDeleteModal(true);
-                        }}
-                        style={styles.actionButton}
-                      >
-                        <Trash2 size={18} color={colors.error[500]} />
-                      </TouchableOpacity>
-                    </View>
+                <View style={styles.statsHeader}>
+                  <View style={styles.statsHeaderLeft}>
+                    <BarChart size={24} color={colors.secondary[500]} />
+                    <Text style={[styles.statsTitle, { color: colors.text }]}>
+                      Statistiques
+                    </Text>
                   </View>
-                  <Text
-                    style={[styles.description, { color: colors.neutral[600] }]}
-                    numberOfLines={2}
-                  >
-                    {session.description}
-                  </Text>
-                </TouchableOpacity>
+                  <Link href="/running/filters" asChild>
+                    <TouchableOpacity style={styles.filterButton}>
+                      <Filter size={18} color={colors.secondary[500]} />
+                      <Text style={[styles.filterButtonText, { color: colors.secondary[500] }]}>
+                        Filtrer
+                      </Text>
+                    </TouchableOpacity>
+                  </Link>
+                </View>
+
+                {sessions.length > 0 ? (
+                  <>
+                    <View style={styles.statsSummary}>
+                      <View style={styles.statItem}>
+                        <View style={[styles.statIconBox, { backgroundColor: colors.secondary[100] }]}>
+                          <Activity size={16} color={colors.secondary[500]} />
+                        </View>
+                        <Text style={[styles.statValue, { color: colors.text }]}>
+                          {sessions.length}
+                        </Text>
+                        <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
+                          Sessions
+                        </Text>
+                      </View>
+
+                      <View style={styles.statItem}>
+                        <View style={[styles.statIconBox, { backgroundColor: colors.success[100] }]}>
+                          <Target size={16} color={colors.success[500]} />
+                        </View>
+                        <Text style={[styles.statValue, { color: colors.text }]}>
+                          {sessions.reduce((sum, session) => sum + (session.distance || 0), 0).toFixed(1)}
+                        </Text>
+                        <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
+                          Km totaux
+                        </Text>
+                      </View>
+
+                      <View style={styles.statItem}>
+                        <View style={[styles.statIconBox, { backgroundColor: colors.warning[100] }]}>
+                          <Clock size={16} color={colors.warning[500]} />
+                        </View>
+                        <Text style={[styles.statValue, { color: colors.text }]}>
+                          {Math.round(sessions.reduce((sum, session) => sum + (session.duration || 0), 0) / 60)}
+                        </Text>
+                        <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
+                          Heures
+                        </Text>
+                      </View>
+
+                      <View style={styles.statItem}>
+                        <View style={[styles.statIconBox, { backgroundColor: colors.primary[100] }]}>
+                          <Award size={16} color={colors.primary[500]} />
+                        </View>
+                        <Text style={[styles.statValue, { color: colors.text }]}>
+                          {(sessions.filter(s => s.feeling === 'great' || s.feeling === 'good').length / sessions.length * 100).toFixed(0)}%
+                        </Text>
+                        <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
+                          Positif
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Link href="/running/filters" asChild>
+                      <TouchableOpacity style={[styles.exportButton, { backgroundColor: colors.secondary[500] }]}>
+                        <Download size={18} color="#fff" />
+                        <Text style={styles.exportButtonText}>
+                          Filtrer et exporter les données
+                        </Text>
+                      </TouchableOpacity>
+                    </Link>
+                  </>
+                ) : (
+                  <View style={styles.noStatsContainer}>
+                    <Text style={[styles.noStatsText, { color: colors.neutral[500] }]}>
+                      Ajoutez des sessions de course pour voir vos statistiques
+                    </Text>
+                  </View>
+                )}
               </Animated.View>
-            ))
+
+              {sessions.map((session, index) => (
+                <Animated.View
+                  key={session.id}
+                  entering={FadeInDown.delay(index * 100)}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.sessionCard,
+                      { backgroundColor: colors.cardBackground },
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      // Ouvrir directement le modal de détails
+                      setSelectedSession(session);
+                      setShowDetailsModal(true);
+                    }}
+                  >
+                    <View style={styles.sessionHeader}>
+                      <View style={styles.sessionInfo}>
+                        <View
+                          style={[
+                            styles.feelingIndicator,
+                            {
+                              backgroundColor:
+                                getFeelingColor(session.feeling) + '20',
+                            },
+                          ]}
+                        >
+                          {getFeelingIcon(session.feeling)}
+                        </View>
+                        <View style={styles.sessionTextInfo}>
+                          <Text
+                            style={[
+                              styles.sessionDateText,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {format(new Date(session.date), 'EEEE d MMMM', {
+                              locale: fr,
+                            })}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.feelingText,
+                              { color: getFeelingColor(session.feeling) },
+                            ]}
+                          >
+                            {getFeelingLabel(session.feeling)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.sessionActions}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Préremplir le formulaire avec les données existantes, incluant les performances
+                            setNewSession({
+                              date: new Date(session.date),
+                              feeling: session.feeling,
+                              description: session.description,
+                              distance: session.distance,
+                              duration: session.duration,
+                              pace: session.pace,
+                              calories: session.calories,
+                              elevationGain: session.elevationGain,
+                              avgHeartRate: session.avgHeartRate,
+                              maxHeartRate: session.maxHeartRate,
+                            });
+
+                            // Si des détails de performance existent, afficher la section
+                            if (
+                              session.distance ||
+                              session.duration ||
+                              session.pace ||
+                              session.calories ||
+                              session.elevationGain ||
+                              session.avgHeartRate ||
+                              session.maxHeartRate
+                            ) {
+                              setShowPerformanceFields(true);
+                            }
+
+                            // Stocker l'ID de la session en cours d'édition
+                            setEditingSessionId(session.id);
+
+                            // Ouvrir le modal d'édition
+                            setShowAddModal(true);
+                          }}
+                          style={styles.actionButton}
+                        >
+                          <Edit2 size={18} color={colors.secondary[500]} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Utiliser le modal personnalisé de suppression
+                            setSelectedSession(session);
+                            setShowDeleteModal(true);
+                          }}
+                          style={styles.actionButton}
+                        >
+                          <Trash2 size={18} color={colors.error[500]} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <Text
+                      style={[styles.description, { color: colors.neutral[600] }]}
+                      numberOfLines={2}
+                    >
+                      {session.description}
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+            </>
           )}
         </ScrollView>
 
@@ -1133,38 +1242,38 @@ export default function RunningScreen() {
                       {(selectedSession.pace ||
                         (selectedSession.distance &&
                           selectedSession.duration)) && (
-                        <View style={styles.performanceDetailItem}>
-                          <Text
-                            style={[
-                              styles.detailItemLabel,
-                              { color: colors.neutral[500] },
-                            ]}
-                          >
-                            Allure
-                          </Text>
-                          <Text
-                            style={[
-                              styles.detailItemValue,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {selectedSession.pace
-                              ? selectedSession.pace
+                          <View style={styles.performanceDetailItem}>
+                            <Text
+                              style={[
+                                styles.detailItemLabel,
+                                { color: colors.neutral[500] },
+                              ]}
+                            >
+                              Allure
+                            </Text>
+                            <Text
+                              style={[
+                                styles.detailItemValue,
+                                { color: colors.text },
+                              ]}
+                            >
+                              {selectedSession.pace
+                                ? selectedSession.pace
                                   .toFixed(2)
                                   .replace('.', ',')
-                              : selectedSession.duration &&
-                                selectedSession.distance
-                              ? (
-                                  selectedSession.duration /
+                                : selectedSession.duration &&
                                   selectedSession.distance
-                                )
-                                  .toFixed(2)
-                                  .replace('.', ',')
-                              : ''}{' '}
-                            min/km
-                          </Text>
-                        </View>
-                      )}
+                                  ? (
+                                    selectedSession.duration /
+                                    selectedSession.distance
+                                  )
+                                    .toFixed(2)
+                                    .replace('.', ',')
+                                  : ''}{' '}
+                              min/km
+                            </Text>
+                          </View>
+                        )}
 
                       {/* Calories */}
                       {selectedSession.calories && (
@@ -1213,35 +1322,35 @@ export default function RunningScreen() {
                       {/* Heart Rate */}
                       {(selectedSession.avgHeartRate ||
                         selectedSession.maxHeartRate) && (
-                        <View style={styles.performanceDetailItem}>
-                          <Text
-                            style={[
-                              styles.detailItemLabel,
-                              { color: colors.neutral[500] },
-                            ]}
-                          >
-                            Fréq. cardiaque
-                          </Text>
-                          <Text
-                            style={[
-                              styles.detailItemValue,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {selectedSession.avgHeartRate
-                              ? `${selectedSession.avgHeartRate} `
-                              : ''}
-                            {selectedSession.avgHeartRate &&
-                            selectedSession.maxHeartRate
-                              ? '- '
-                              : ''}
-                            {selectedSession.maxHeartRate
-                              ? `${selectedSession.maxHeartRate}`
-                              : ''}{' '}
-                            bpm
-                          </Text>
-                        </View>
-                      )}
+                          <View style={styles.performanceDetailItem}>
+                            <Text
+                              style={[
+                                styles.detailItemLabel,
+                                { color: colors.neutral[500] },
+                              ]}
+                            >
+                              Fréq. cardiaque
+                            </Text>
+                            <Text
+                              style={[
+                                styles.detailItemValue,
+                                { color: colors.text },
+                              ]}
+                            >
+                              {selectedSession.avgHeartRate
+                                ? `${selectedSession.avgHeartRate} `
+                                : ''}
+                              {selectedSession.avgHeartRate &&
+                                selectedSession.maxHeartRate
+                                ? '- '
+                                : ''}
+                              {selectedSession.maxHeartRate
+                                ? `${selectedSession.maxHeartRate}`
+                                : ''}{' '}
+                              bpm
+                            </Text>
+                          </View>
+                        )}
                     </View>
                   </View>
                 )}
@@ -1407,6 +1516,96 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 100,
+  },
+  statsCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  statsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    marginLeft: 10,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 6,
+  },
+  statsSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+  },
+  statItem: {
+    alignItems: 'center',
+    width: '22%',
+  },
+  statIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+  },
+  noStatsContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noStatsText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
   },
   emptyState: {
     borderRadius: 20,
@@ -1600,6 +1799,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 10,
   },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
   // Options Modal styles
   optionsModalContent: {
     width: width - 60,
@@ -1779,11 +1983,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
   },
   deleteButtonConfirmText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-  },
-  saveButtonText: {
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
