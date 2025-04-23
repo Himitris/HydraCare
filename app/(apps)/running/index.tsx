@@ -44,6 +44,14 @@ interface RunningSession {
   date: Date;
   feeling: 'great' | 'good' | 'average' | 'bad';
   description: string;
+  // Nouveaux champs optionnels pour les performances
+  distance?: number; // Distance en kilomètres
+  duration?: number; // Durée en minutes
+  pace?: number; // Allure en minutes par kilomètre
+  calories?: number; // Calories brûlées (estimation)
+  elevationGain?: number; // Dénivelé positif en mètres
+  maxHeartRate?: number; // Fréquence cardiaque maximale en bpm
+  avgHeartRate?: number; // Fréquence cardiaque moyenne en bpm
 }
 
 export default function RunningScreen() {
@@ -51,9 +59,9 @@ export default function RunningScreen() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [sessions, setSessions] = useState<RunningSession[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);  
-  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showPerformanceFields, setShowPerformanceFields] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<RunningSession | null>(
     null
@@ -145,6 +153,17 @@ export default function RunningScreen() {
       return;
     }
 
+    // Calculer automatiquement l'allure si on a la distance et la durée
+    let pace = newSession.pace;
+    if (
+      !pace &&
+      newSession.distance &&
+      newSession.duration &&
+      newSession.distance > 0
+    ) {
+      pace = newSession.duration / newSession.distance;
+    }
+
     // Si editingSessionId existe, on est en mode édition
     if (editingSessionId) {
       const updatedSessions = sessions.map((session) => {
@@ -154,6 +173,14 @@ export default function RunningScreen() {
             date: newSession.date || new Date(),
             feeling: newSession.feeling || 'good',
             description: newSession.description?.trim() || '',
+            // Ajouter les champs de performance
+            distance: newSession.distance,
+            duration: newSession.duration,
+            pace: pace,
+            calories: newSession.calories,
+            elevationGain: newSession.elevationGain,
+            avgHeartRate: newSession.avgHeartRate,
+            maxHeartRate: newSession.maxHeartRate,
           };
         }
         return session;
@@ -171,6 +198,14 @@ export default function RunningScreen() {
         date: newSession.date || new Date(),
         feeling: newSession.feeling || 'good',
         description: newSession.description.trim(),
+        // Ajouter les champs de performance
+        distance: newSession.distance,
+        duration: newSession.duration,
+        pace: pace,
+        calories: newSession.calories,
+        elevationGain: newSession.elevationGain,
+        avgHeartRate: newSession.avgHeartRate,
+        maxHeartRate: newSession.maxHeartRate,
       };
 
       const updatedSessions = [session, ...sessions];
@@ -181,6 +216,7 @@ export default function RunningScreen() {
     // Fermer le modal et réinitialiser le formulaire
     setShowAddModal(false);
     setNewSession({ date: new Date(), feeling: 'good', description: '' });
+    setShowPerformanceFields(false);
 
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -201,6 +237,15 @@ export default function RunningScreen() {
     if (selectedDate) {
       setNewSession({ ...newSession, date: selectedDate });
     }
+  };
+
+  // Fonction pour calculer automatiquement l'allure en minutes par kilomètre
+  const calculatePace = (): string => {
+    if (newSession.distance && newSession.duration && newSession.distance > 0) {
+      const pace = newSession.duration / newSession.distance;
+      return pace.toFixed(2).replace('.', ','); // Remplace le point par une virgule pour le format français
+    }
+    return '';
   };
 
   return (
@@ -275,9 +320,9 @@ export default function RunningScreen() {
                   ]}
                   activeOpacity={0.8}
                   onPress={() => {
-                    // Ouvrir le modal d'options personnalisé
+                    // Ouvrir directement le modal de détails
                     setSelectedSession(session);
-                    setShowOptionsModal(true);
+                    setShowDetailsModal(true);
                   }}
                 >
                   <View style={styles.sessionHeader}>
@@ -317,12 +362,32 @@ export default function RunningScreen() {
                     <View style={styles.sessionActions}>
                       <TouchableOpacity
                         onPress={() => {
-                          // Préremplir le formulaire avec les données existantes
+                          // Préremplir le formulaire avec les données existantes, incluant les performances
                           setNewSession({
                             date: new Date(session.date),
                             feeling: session.feeling,
                             description: session.description,
+                            distance: session.distance,
+                            duration: session.duration,
+                            pace: session.pace,
+                            calories: session.calories,
+                            elevationGain: session.elevationGain,
+                            avgHeartRate: session.avgHeartRate,
+                            maxHeartRate: session.maxHeartRate,
                           });
+
+                          // Si des détails de performance existent, afficher la section
+                          if (
+                            session.distance ||
+                            session.duration ||
+                            session.pace ||
+                            session.calories ||
+                            session.elevationGain ||
+                            session.avgHeartRate ||
+                            session.maxHeartRate
+                          ) {
+                            setShowPerformanceFields(true);
+                          }
 
                           // Stocker l'ID de la session en cours d'édition
                           setEditingSessionId(session.id);
@@ -337,34 +402,9 @@ export default function RunningScreen() {
 
                       <TouchableOpacity
                         onPress={() => {
-                          // Demander confirmation avant suppression
-                          Alert.alert(
-                            'Confirmation',
-                            'Êtes-vous sûr de vouloir supprimer cette sortie ?',
-                            [
-                              { text: 'Annuler', style: 'cancel' },
-                              {
-                                text: 'Supprimer',
-                                style: 'destructive',
-                                onPress: async () => {
-                                  // Filtrer la session à supprimer
-                                  const updatedSessions = sessions.filter(
-                                    (s) => s.id !== session.id
-                                  );
-                                  setSessions(updatedSessions);
-
-                                  // Sauvegarder les sessions mises à jour
-                                  await saveSessions(updatedSessions);
-
-                                  if (Platform.OS !== 'web') {
-                                    Haptics.notificationAsync(
-                                      Haptics.NotificationFeedbackType.Success
-                                    );
-                                  }
-                                },
-                              },
-                            ]
-                          );
+                          // Utiliser le modal personnalisé de suppression
+                          setSelectedSession(session);
+                          setShowDeleteModal(true);
                         }}
                         style={styles.actionButton}
                       >
@@ -526,6 +566,370 @@ export default function RunningScreen() {
                   />
                 </View>
 
+                {/* Performance Details - Collapsible Section */}
+                <View style={styles.inputGroup}>
+                  <TouchableOpacity
+                    style={styles.collapsibleHeader}
+                    onPress={() =>
+                      setShowPerformanceFields(!showPerformanceFields)
+                    }
+                  >
+                    <Text
+                      style={[styles.label, { color: colors.text, flex: 1 }]}
+                    >
+                      Détails de performance (optionnel)
+                    </Text>
+                    <View
+                      style={{
+                        transform: [
+                          { rotate: showPerformanceFields ? '180deg' : '0deg' },
+                        ],
+                      }}
+                    >
+                      <ChevronRight size={20} color={colors.text} />
+                    </View>
+                  </TouchableOpacity>
+
+                  {showPerformanceFields && (
+                    <Animated.View
+                      entering={FadeInDown.duration(300)}
+                      style={styles.performanceFieldsContainer}
+                    >
+                      {/* Distance */}
+                      <View style={styles.performanceField}>
+                        <Text
+                          style={[styles.fieldLabel, { color: colors.text }]}
+                        >
+                          Distance
+                        </Text>
+                        <View style={styles.fieldInputContainer}>
+                          <TextInput
+                            style={[
+                              styles.fieldInput,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.neutral[300],
+                              },
+                            ]}
+                            keyboardType="numeric"
+                            placeholder="0.0"
+                            placeholderTextColor={colors.neutral[400]}
+                            value={
+                              newSession.distance !== undefined
+                                ? String(newSession.distance)
+                                : ''
+                            }
+                            onChangeText={(text) => {
+                              const value = parseFloat(text.replace(',', '.'));
+                              setNewSession({
+                                ...newSession,
+                                distance: isNaN(value) ? undefined : value,
+                              });
+                            }}
+                          />
+                          <Text
+                            style={[
+                              styles.fieldUnit,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            km
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Duration */}
+                      <View style={styles.performanceField}>
+                        <Text
+                          style={[styles.fieldLabel, { color: colors.text }]}
+                        >
+                          Durée
+                        </Text>
+                        <View style={styles.fieldInputContainer}>
+                          <TextInput
+                            style={[
+                              styles.fieldInput,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.neutral[300],
+                              },
+                            ]}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor={colors.neutral[400]}
+                            value={
+                              newSession.duration !== undefined
+                                ? String(newSession.duration)
+                                : ''
+                            }
+                            onChangeText={(text) => {
+                              const value = parseInt(text);
+                              setNewSession({
+                                ...newSession,
+                                duration: isNaN(value) ? undefined : value,
+                              });
+                            }}
+                          />
+                          <Text
+                            style={[
+                              styles.fieldUnit,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            min
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Pace - Calculated automatically if distance and duration are provided */}
+                      <View style={styles.performanceField}>
+                        <Text
+                          style={[styles.fieldLabel, { color: colors.text }]}
+                        >
+                          Allure moyenne
+                        </Text>
+                        <View style={styles.fieldInputContainer}>
+                          <TextInput
+                            style={[
+                              styles.fieldInput,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.neutral[300],
+                              },
+                            ]}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor={colors.neutral[400]}
+                            value={
+                              newSession.pace !== undefined
+                                ? String(newSession.pace)
+                                : calculatePace()
+                            }
+                            onChangeText={(text) => {
+                              const value = parseFloat(text.replace(',', '.'));
+                              setNewSession({
+                                ...newSession,
+                                pace: isNaN(value) ? undefined : value,
+                              });
+                            }}
+                          />
+                          <Text
+                            style={[
+                              styles.fieldUnit,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            min/km
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Calories */}
+                      <View style={styles.performanceField}>
+                        <Text
+                          style={[styles.fieldLabel, { color: colors.text }]}
+                        >
+                          Calories
+                        </Text>
+                        <View style={styles.fieldInputContainer}>
+                          <TextInput
+                            style={[
+                              styles.fieldInput,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.neutral[300],
+                              },
+                            ]}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor={colors.neutral[400]}
+                            value={
+                              newSession.calories !== undefined
+                                ? String(newSession.calories)
+                                : ''
+                            }
+                            onChangeText={(text) => {
+                              const value = parseInt(text);
+                              setNewSession({
+                                ...newSession,
+                                calories: isNaN(value) ? undefined : value,
+                              });
+                            }}
+                          />
+                          <Text
+                            style={[
+                              styles.fieldUnit,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            kcal
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Elevation Gain */}
+                      <View style={styles.performanceField}>
+                        <Text
+                          style={[styles.fieldLabel, { color: colors.text }]}
+                        >
+                          Dénivelé
+                        </Text>
+                        <View style={styles.fieldInputContainer}>
+                          <TextInput
+                            style={[
+                              styles.fieldInput,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.neutral[300],
+                              },
+                            ]}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor={colors.neutral[400]}
+                            value={
+                              newSession.elevationGain !== undefined
+                                ? String(newSession.elevationGain)
+                                : ''
+                            }
+                            onChangeText={(text) => {
+                              const value = parseInt(text);
+                              setNewSession({
+                                ...newSession,
+                                elevationGain: isNaN(value) ? undefined : value,
+                              });
+                            }}
+                          />
+                          <Text
+                            style={[
+                              styles.fieldUnit,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            m
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Heart Rate Section */}
+                      <View style={styles.performanceFieldGroup}>
+                        <Text
+                          style={[
+                            styles.fieldGroupLabel,
+                            { color: colors.text },
+                          ]}
+                        >
+                          Fréquence cardiaque
+                        </Text>
+
+                        <View style={styles.twoColumnFields}>
+                          {/* Avg Heart Rate */}
+                          <View style={[styles.performanceField, { flex: 1 }]}>
+                            <Text
+                              style={[
+                                styles.smallFieldLabel,
+                                { color: colors.text },
+                              ]}
+                            >
+                              Moyenne
+                            </Text>
+                            <View style={styles.fieldInputContainer}>
+                              <TextInput
+                                style={[
+                                  styles.fieldInput,
+                                  {
+                                    backgroundColor: colors.background,
+                                    color: colors.text,
+                                    borderColor: colors.neutral[300],
+                                  },
+                                ]}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={colors.neutral[400]}
+                                value={
+                                  newSession.avgHeartRate !== undefined
+                                    ? String(newSession.avgHeartRate)
+                                    : ''
+                                }
+                                onChangeText={(text) => {
+                                  const value = parseInt(text);
+                                  setNewSession({
+                                    ...newSession,
+                                    avgHeartRate: isNaN(value)
+                                      ? undefined
+                                      : value,
+                                  });
+                                }}
+                              />
+                              <Text
+                                style={[
+                                  styles.fieldUnit,
+                                  { color: colors.neutral[500] },
+                                ]}
+                              >
+                                bpm
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Max Heart Rate */}
+                          <View style={[styles.performanceField, { flex: 1 }]}>
+                            <Text
+                              style={[
+                                styles.smallFieldLabel,
+                                { color: colors.text },
+                              ]}
+                            >
+                              Maximum
+                            </Text>
+                            <View style={styles.fieldInputContainer}>
+                              <TextInput
+                                style={[
+                                  styles.fieldInput,
+                                  {
+                                    backgroundColor: colors.background,
+                                    color: colors.text,
+                                    borderColor: colors.neutral[300],
+                                  },
+                                ]}
+                                keyboardType="numeric"
+                                placeholder="0"
+                                placeholderTextColor={colors.neutral[400]}
+                                value={
+                                  newSession.maxHeartRate !== undefined
+                                    ? String(newSession.maxHeartRate)
+                                    : ''
+                                }
+                                onChangeText={(text) => {
+                                  const value = parseInt(text);
+                                  setNewSession({
+                                    ...newSession,
+                                    maxHeartRate: isNaN(value)
+                                      ? undefined
+                                      : value,
+                                  });
+                                }}
+                              />
+                              <Text
+                                style={[
+                                  styles.fieldUnit,
+                                  { color: colors.neutral[500] },
+                                ]}
+                              >
+                                bpm
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </Animated.View>
+                  )}
+                </View>
+
                 {/* Save Button */}
                 <TouchableOpacity
                   style={[
@@ -556,136 +960,6 @@ export default function RunningScreen() {
             locale="fr"
           />
         )}
-
-        {/* Options Modal */}
-        <Modal
-          visible={showOptionsModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowOptionsModal(false)}
-        >
-          <View style={styles.centeredModalContainer}>
-            <TouchableOpacity
-              style={styles.modalOverlay}
-              activeOpacity={1}
-              onPress={() => setShowOptionsModal(false)}
-            />
-
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              exiting={FadeOut.duration(200)}
-              style={[
-                styles.optionsModalContent,
-                { backgroundColor: colors.cardBackground },
-              ]}
-            >
-              <Text style={[styles.optionsModalTitle, { color: colors.text }]}>
-                Options
-              </Text>
-              <Text
-                style={[
-                  styles.optionsModalSubtitle,
-                  { color: colors.neutral[500] },
-                ]}
-              >
-                Que souhaitez-vous faire avec cette sortie ?
-              </Text>
-
-              <View style={styles.optionsContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    { borderColor: colors.neutral[200] },
-                  ]}
-                  onPress={() => {
-                    setShowOptionsModal(false);
-                    setShowDetailsModal(true);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.optionIconContainer,
-                      { backgroundColor: colors.primary[100] },
-                    ]}
-                  >
-                    <Calendar size={24} color={colors.primary[500]} />
-                  </View>
-                  <Text style={[styles.optionText, { color: colors.text }]}>
-                    Voir les détails
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    { borderColor: colors.neutral[200] },
-                  ]}
-                  onPress={() => {
-                    setShowOptionsModal(false);
-                    if (selectedSession) {
-                      setNewSession({
-                        date: new Date(selectedSession.date),
-                        feeling: selectedSession.feeling,
-                        description: selectedSession.description,
-                      });
-                      setEditingSessionId(selectedSession.id);
-                      setShowAddModal(true);
-                    }
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.optionIconContainer,
-                      { backgroundColor: colors.secondary[100] },
-                    ]}
-                  >
-                    <Edit2 size={24} color={colors.secondary[500]} />
-                  </View>
-                  <Text style={[styles.optionText, { color: colors.text }]}>
-                    Modifier
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.optionButton,
-                    { borderColor: colors.neutral[200] },
-                  ]}
-                  onPress={() => {
-                    setShowOptionsModal(false);
-                    setShowDeleteModal(true);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.optionIconContainer,
-                      { backgroundColor: colors.error[100] },
-                    ]}
-                  >
-                    <Trash2 size={24} color={colors.error[500]} />
-                  </View>
-                  <Text
-                    style={[styles.optionText, { color: colors.error[500] }]}
-                  >
-                    Supprimer
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.cancelButton,
-                  { backgroundColor: colors.neutral[200] },
-                ]}
-                onPress={() => setShowOptionsModal(false)}
-              >
-                <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                  Annuler
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-        </Modal>
 
         {/* Details Modal */}
         <Modal
@@ -785,6 +1059,193 @@ export default function RunningScreen() {
                 </Text>
               </View>
 
+              {/* Performance Details Section - Only shown if any performance data exists */}
+              {selectedSession &&
+                (selectedSession.distance ||
+                  selectedSession.duration ||
+                  selectedSession.pace ||
+                  selectedSession.calories ||
+                  selectedSession.elevationGain ||
+                  selectedSession.avgHeartRate ||
+                  selectedSession.maxHeartRate) && (
+                  <View
+                    style={[
+                      styles.performanceDetailsContainer,
+                      { borderColor: colors.neutral[200] },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.performanceDetailsTitle,
+                        { color: colors.text },
+                      ]}
+                    >
+                      Détails de performance
+                    </Text>
+
+                    <View style={styles.performanceDetailsGrid}>
+                      {/* Distance */}
+                      {selectedSession.distance && (
+                        <View style={styles.performanceDetailItem}>
+                          <Text
+                            style={[
+                              styles.detailItemLabel,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            Distance
+                          </Text>
+                          <Text
+                            style={[
+                              styles.detailItemValue,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {selectedSession.distance} km
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Duration */}
+                      {selectedSession.duration && (
+                        <View style={styles.performanceDetailItem}>
+                          <Text
+                            style={[
+                              styles.detailItemLabel,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            Durée
+                          </Text>
+                          <Text
+                            style={[
+                              styles.detailItemValue,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {Math.floor(selectedSession.duration / 60)}h{' '}
+                            {selectedSession.duration % 60}min
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Pace */}
+                      {(selectedSession.pace ||
+                        (selectedSession.distance &&
+                          selectedSession.duration)) && (
+                        <View style={styles.performanceDetailItem}>
+                          <Text
+                            style={[
+                              styles.detailItemLabel,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            Allure
+                          </Text>
+                          <Text
+                            style={[
+                              styles.detailItemValue,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {selectedSession.pace
+                              ? selectedSession.pace
+                                  .toFixed(2)
+                                  .replace('.', ',')
+                              : selectedSession.duration &&
+                                selectedSession.distance
+                              ? (
+                                  selectedSession.duration /
+                                  selectedSession.distance
+                                )
+                                  .toFixed(2)
+                                  .replace('.', ',')
+                              : ''}{' '}
+                            min/km
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Calories */}
+                      {selectedSession.calories && (
+                        <View style={styles.performanceDetailItem}>
+                          <Text
+                            style={[
+                              styles.detailItemLabel,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            Calories
+                          </Text>
+                          <Text
+                            style={[
+                              styles.detailItemValue,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {selectedSession.calories} kcal
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Elevation */}
+                      {selectedSession.elevationGain && (
+                        <View style={styles.performanceDetailItem}>
+                          <Text
+                            style={[
+                              styles.detailItemLabel,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            Dénivelé
+                          </Text>
+                          <Text
+                            style={[
+                              styles.detailItemValue,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {selectedSession.elevationGain} m
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Heart Rate */}
+                      {(selectedSession.avgHeartRate ||
+                        selectedSession.maxHeartRate) && (
+                        <View style={styles.performanceDetailItem}>
+                          <Text
+                            style={[
+                              styles.detailItemLabel,
+                              { color: colors.neutral[500] },
+                            ]}
+                          >
+                            Fréq. cardiaque
+                          </Text>
+                          <Text
+                            style={[
+                              styles.detailItemValue,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {selectedSession.avgHeartRate
+                              ? `${selectedSession.avgHeartRate} `
+                              : ''}
+                            {selectedSession.avgHeartRate &&
+                            selectedSession.maxHeartRate
+                              ? '- '
+                              : ''}
+                            {selectedSession.maxHeartRate
+                              ? `${selectedSession.maxHeartRate}`
+                              : ''}{' '}
+                            bpm
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
+
               <TouchableOpacity
                 style={[
                   styles.closeDetailsButton,
@@ -816,74 +1277,93 @@ export default function RunningScreen() {
               entering={FadeIn.duration(200)}
               exiting={FadeOut.duration(200)}
               style={[
-                styles.deleteModalContent,
+                styles.centeredModalContent, // Utilisez le même style que les autres modals
                 { backgroundColor: colors.cardBackground },
               ]}
             >
-              <View
-                style={[
-                  styles.deleteIconContainer,
-                  { backgroundColor: colors.error[100] },
-                ]}
-              >
-                <Trash2 size={32} color={colors.error[500]} />
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  Confirmation de suppression
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowDeleteModal(false)}
+                  style={styles.closeButton}
+                >
+                  <X size={24} color={colors.text} />
+                </TouchableOpacity>
               </View>
 
-              <Text style={[styles.deleteTitle, { color: colors.text }]}>
-                Confirmation
-              </Text>
-
-              <Text
-                style={[styles.deleteMessage, { color: colors.neutral[600] }]}
-              >
-                Êtes-vous sûr de vouloir supprimer cette sortie ? Cette action
-                est irréversible.
-              </Text>
-
-              <View style={styles.deleteButtonsContainer}>
-                <TouchableOpacity
+              <View style={styles.deleteConfirmContent}>
+                <View
                   style={[
-                    styles.deleteButtonCancel,
-                    { backgroundColor: colors.neutral[200] },
+                    styles.deleteIconContainer,
+                    { backgroundColor: colors.error[100] },
                   ]}
-                  onPress={() => setShowDeleteModal(false)}
                 >
-                  <Text
-                    style={[styles.deleteButtonText, { color: colors.text }]}
+                  <Trash2 size={32} color={colors.error[500]} />
+                </View>
+
+                <Text
+                  style={[
+                    styles.deleteMessage,
+                    {
+                      color: colors.neutral[600],
+                      textAlign: 'center',
+                      marginVertical: 20,
+                    },
+                  ]}
+                >
+                  Êtes-vous sûr de vouloir supprimer cette sortie ? Cette action
+                  est irréversible.
+                </Text>
+
+                <View style={styles.deleteButtonsContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.deleteButtonCancel,
+                      { backgroundColor: colors.neutral[200] },
+                    ]}
+                    onPress={() => setShowDeleteModal(false)}
                   >
-                    Annuler
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[styles.deleteButtonText, { color: colors.text }]}
+                    >
+                      Annuler
+                    </Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.deleteButtonConfirm,
-                    { backgroundColor: colors.error[500] },
-                  ]}
-                  onPress={async () => {
-                    if (selectedSession) {
-                      // Filtrer la session à supprimer
-                      const updatedSessions = sessions.filter(
-                        (s) => s.id !== selectedSession.id
-                      );
-                      setSessions(updatedSessions);
-
-                      // Sauvegarder les sessions mises à jour
-                      await saveSessions(updatedSessions);
-
-                      if (Platform.OS !== 'web') {
-                        Haptics.notificationAsync(
-                          Haptics.NotificationFeedbackType.Success
+                  <TouchableOpacity
+                    style={[
+                      styles.deleteButtonConfirm,
+                      { backgroundColor: colors.error[500] },
+                    ]}
+                    onPress={async () => {
+                      if (selectedSession) {
+                        // Filtrer la session à supprimer
+                        const updatedSessions = sessions.filter(
+                          (s) => s.id !== selectedSession.id
                         );
-                      }
-                    }
+                        setSessions(updatedSessions);
 
-                    setShowDeleteModal(false);
-                    setSelectedSession(null);
-                  }}
-                >
-                  <Text style={styles.deleteButtonConfirmText}>Supprimer</Text>
-                </TouchableOpacity>
+                        // Sauvegarder les sessions mises à jour
+                        await saveSessions(updatedSessions);
+
+                        if (Platform.OS !== 'web') {
+                          Haptics.notificationAsync(
+                            Haptics.NotificationFeedbackType.Success
+                          );
+                        }
+                      }
+
+                      setShowDeleteModal(false);
+                      setSelectedSession(null);
+                    }}
+                  >
+                    <Text style={styles.deleteButtonConfirmText}>
+                      Supprimer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </Animated.View>
           </View>
@@ -1120,11 +1600,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 10,
   },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-  },
   // Options Modal styles
   optionsModalContent: {
     width: width - 60,
@@ -1283,6 +1758,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     justifyContent: 'space-between',
+    marginTop: 10,
   },
   deleteButtonCancel: {
     flex: 1,
@@ -1306,5 +1782,103 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  // Styles pour les champs de performance
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  performanceFieldsContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  performanceField: {
+    marginBottom: 16,
+  },
+  performanceFieldGroup: {
+    marginTop: 8,
+    marginBottom: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  fieldGroupLabel: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginBottom: 6,
+  },
+  smallFieldLabel: {
+    fontSize: 13,
+    fontFamily: 'Inter-Medium',
+    marginBottom: 6,
+  },
+  fieldInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fieldInput: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+  },
+  fieldUnit: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    width: 50,
+  },
+  twoColumnFields: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  performanceDetailsContainer: {
+    padding: 20,
+    borderTopWidth: 1,
+  },
+  performanceDetailsTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+  },
+  performanceDetailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  performanceDetailItem: {
+    width: '50%',
+    marginBottom: 12,
+    paddingRight: 8,
+  },
+  detailItemLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 2,
+  },
+  detailItemValue: {
+    fontSize: 15,
+    fontFamily: 'Inter-SemiBold',
+  },
+  deleteConfirmContent: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
 });
