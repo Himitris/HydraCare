@@ -71,7 +71,7 @@ export function useRunningData() {
     // État par défaut pour les options de filtre
     const defaultFilterOptions: FilterOptions = {
         dateRange: {
-            enabled: true,
+            enabled: false,
             startDate: defaultStartDate,
             endDate: new Date(),
         },

@@ -1,5 +1,4 @@
-// app/(apps)/running/filters.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     StyleSheet,
     View,
@@ -11,36 +10,30 @@ import {
     Modal,
     TextInput,
     Switch,
-    Alert,
     ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
     Filter,
     Download,
     Calendar,
     X,
     Sliders,
-    CheckCircle, Circle, ChevronDown, ChevronUp, Heart, Clock, RefreshCw
+    CheckCircle, Circle, ChevronDown, ChevronUp, RefreshCw
 } from 'lucide-react-native';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, isAfter, isBefore, subMonths } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import { useRunningData, FilterOptions } from '@/hooks/useRunningData';
-
-const STORAGE_KEY = '@hydracare/running_sessions';
+import { useRunningData } from '@/hooks/useRunningData';
 
 export default function RunningFiltersScreen() {
     const { isDarkMode } = useAppContext();
     const colors = isDarkMode ? Colors.dark : Colors.light;
 
     const {
-        sessions,
         filteredSessions,
         isLoading,
         isExporting,
@@ -51,13 +44,10 @@ export default function RunningFiltersScreen() {
         getFeelingLabel
     } = useRunningData();
 
-    // États pour les modales et pickers
     const [showDatePicker, setShowDatePicker] = useState<'start' | 'end' | null>(null);
     const [showFilterHelp, setShowFilterHelp] = useState(false);
-
-    // État pour l'interface utilisateur
     const [expandedSections, setExpandedSections] = useState({
-        dateRange: true,
+        dateRange: false,
         distance: false,
         duration: false,
         pace: false,
@@ -66,14 +56,25 @@ export default function RunningFiltersScreen() {
         feeling: false,
     });
 
-    const toggleSectionExpand = (section: string) => {
+    const distanceMinInputRef = useRef(null);
+    const distanceMaxInputRef = useRef(null);
+    const durationMinInputRef = useRef(null);
+    const durationMaxInputRef = useRef(null);
+    const paceMinInputRef = useRef(null);
+    const paceMaxInputRef = useRef(null);
+    const elevationMinInputRef = useRef(null);
+    const elevationMaxInputRef = useRef(null);
+    const heartRateMinInputRef = useRef(null);
+    const heartRateMaxInputRef = useRef(null);
+
+    const toggleSectionExpand = (section) => {
         setExpandedSections({
             ...expandedSections,
-            [section]: !expandedSections[section as keyof typeof expandedSections],
+            [section]: !expandedSections[section],
         });
     };
 
-    const toggleFeelingFilter = (feeling: 'great' | 'good' | 'average' | 'bad') => {
+    const toggleFeelingFilter = (feeling) => {
         const currentValues = [...filterOptions.feeling.values];
         const index = currentValues.indexOf(feeling);
 
@@ -92,7 +93,7 @@ export default function RunningFiltersScreen() {
         });
     };
 
-    const onDateChange = (event: any, selectedDate?: Date) => {
+    const onDateChange = (event, selectedDate) => {
         if (Platform.OS === 'android') {
             setShowDatePicker(null);
         }
@@ -108,7 +109,7 @@ export default function RunningFiltersScreen() {
         }
     };
 
-    const getFeelingColor = (feeling: 'great' | 'good' | 'average' | 'bad') => {
+    const getFeelingColor = (feeling) => {
         switch (feeling) {
             case 'great': return colors.success[500];
             case 'good': return colors.secondary[500];
@@ -131,16 +132,16 @@ export default function RunningFiltersScreen() {
         exportToCSV();
     };
 
-    const FilterSection = ({
-        title,
-        section,
-        children
-    }: {
-        title: string;
-        section: string;
-        children: React.ReactNode
-    }) => {
-        const isExpanded = expandedSections[section as keyof typeof expandedSections];
+    const handleTextChange = useCallback((text, setValue, inputRef) => {
+        const value = text.trim() === '' ? null : parseFloat(text.replace(',', '.'));
+        setValue(value);
+        if (inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, []);
+
+    const FilterSection = ({ title, section, children }) => {
+        const isExpanded = expandedSections[section];
 
         return (
             <View style={styles.filterSection}>
@@ -340,6 +341,7 @@ export default function RunningFiltersScreen() {
                                         Min (km)
                                     </Text>
                                     <TextInput
+                                        ref={distanceMinInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -348,12 +350,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 5"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.distance.min !== null ? String(filterOptions.distance.min) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseFloat(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 distance: {
@@ -361,7 +362,7 @@ export default function RunningFiltersScreen() {
                                                     min: value,
                                                 },
                                             });
-                                        }}
+                                        }, distanceMinInputRef)}
                                         editable={filterOptions.distance.enabled}
                                     />
                                 </View>
@@ -371,6 +372,7 @@ export default function RunningFiltersScreen() {
                                         Max (km)
                                     </Text>
                                     <TextInput
+                                        ref={distanceMaxInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -379,12 +381,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 10"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.distance.max !== null ? String(filterOptions.distance.max) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseFloat(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 distance: {
@@ -392,7 +393,7 @@ export default function RunningFiltersScreen() {
                                                     max: value,
                                                 },
                                             });
-                                        }}
+                                        }, distanceMaxInputRef)}
                                         editable={filterOptions.distance.enabled}
                                     />
                                 </View>
@@ -433,6 +434,7 @@ export default function RunningFiltersScreen() {
                                         Min (min)
                                     </Text>
                                     <TextInput
+                                        ref={durationMinInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -441,12 +443,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 30"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.duration.min !== null ? String(filterOptions.duration.min) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseInt(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 duration: {
@@ -454,7 +455,7 @@ export default function RunningFiltersScreen() {
                                                     min: value,
                                                 },
                                             });
-                                        }}
+                                        }, durationMinInputRef)}
                                         editable={filterOptions.duration.enabled}
                                     />
                                 </View>
@@ -464,6 +465,7 @@ export default function RunningFiltersScreen() {
                                         Max (min)
                                     </Text>
                                     <TextInput
+                                        ref={durationMaxInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -472,12 +474,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 60"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.duration.max !== null ? String(filterOptions.duration.max) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseInt(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 duration: {
@@ -485,7 +486,7 @@ export default function RunningFiltersScreen() {
                                                     max: value,
                                                 },
                                             });
-                                        }}
+                                        }, durationMaxInputRef)}
                                         editable={filterOptions.duration.enabled}
                                     />
                                 </View>
@@ -526,6 +527,7 @@ export default function RunningFiltersScreen() {
                                         Min (min/km)
                                     </Text>
                                     <TextInput
+                                        ref={paceMinInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -534,12 +536,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 4.5"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.pace.min !== null ? String(filterOptions.pace.min) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseFloat(text.replace(',', '.'));
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 pace: {
@@ -547,7 +548,7 @@ export default function RunningFiltersScreen() {
                                                     min: value,
                                                 },
                                             });
-                                        }}
+                                        }, paceMinInputRef)}
                                         editable={filterOptions.pace.enabled}
                                     />
                                 </View>
@@ -557,6 +558,7 @@ export default function RunningFiltersScreen() {
                                         Max (min/km)
                                     </Text>
                                     <TextInput
+                                        ref={paceMaxInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -565,12 +567,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 6"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.pace.max !== null ? String(filterOptions.pace.max) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseFloat(text.replace(',', '.'));
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 pace: {
@@ -578,7 +579,7 @@ export default function RunningFiltersScreen() {
                                                     max: value,
                                                 },
                                             });
-                                        }}
+                                        }, paceMaxInputRef)}
                                         editable={filterOptions.pace.enabled}
                                     />
                                 </View>
@@ -619,6 +620,7 @@ export default function RunningFiltersScreen() {
                                         Min (m)
                                     </Text>
                                     <TextInput
+                                        ref={elevationMinInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -627,12 +629,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 100"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.elevation.min !== null ? String(filterOptions.elevation.min) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseInt(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 elevation: {
@@ -640,7 +641,7 @@ export default function RunningFiltersScreen() {
                                                     min: value,
                                                 },
                                             });
-                                        }}
+                                        }, elevationMinInputRef)}
                                         editable={filterOptions.elevation.enabled}
                                     />
                                 </View>
@@ -650,6 +651,7 @@ export default function RunningFiltersScreen() {
                                         Max (m)
                                     </Text>
                                     <TextInput
+                                        ref={elevationMaxInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -658,12 +660,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 500"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.elevation.max !== null ? String(filterOptions.elevation.max) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseInt(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 elevation: {
@@ -671,7 +672,7 @@ export default function RunningFiltersScreen() {
                                                     max: value,
                                                 },
                                             });
-                                        }}
+                                        }, elevationMaxInputRef)}
                                         editable={filterOptions.elevation.enabled}
                                     />
                                 </View>
@@ -712,6 +713,7 @@ export default function RunningFiltersScreen() {
                                         Min (bpm)
                                     </Text>
                                     <TextInput
+                                        ref={heartRateMinInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -720,12 +722,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 120"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.heartRate.min !== null ? String(filterOptions.heartRate.min) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseInt(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 heartRate: {
@@ -733,7 +734,7 @@ export default function RunningFiltersScreen() {
                                                     min: value,
                                                 },
                                             });
-                                        }}
+                                        }, heartRateMinInputRef)}
                                         editable={filterOptions.heartRate.enabled}
                                     />
                                 </View>
@@ -743,6 +744,7 @@ export default function RunningFiltersScreen() {
                                         Max (bpm)
                                     </Text>
                                     <TextInput
+                                        ref={heartRateMaxInputRef}
                                         style={[
                                             styles.input,
                                             {
@@ -751,12 +753,11 @@ export default function RunningFiltersScreen() {
                                                 borderColor: colors.neutral[300],
                                             },
                                         ]}
-                                        keyboardType="decimal-pad"  // Changé de "numeric" à "decimal-pad"
+                                        keyboardType="decimal-pad"
                                         placeholder="Ex: 170"
                                         placeholderTextColor={colors.neutral[400]}
                                         value={filterOptions.heartRate.max !== null ? String(filterOptions.heartRate.max) : ''}
-                                        onChangeText={(text) => {
-                                            const value = text.trim() === '' ? null : parseInt(text);
+                                        onChangeText={(text) => handleTextChange(text, (value) => {
                                             setFilterOptions({
                                                 ...filterOptions,
                                                 heartRate: {
@@ -764,7 +765,7 @@ export default function RunningFiltersScreen() {
                                                     max: value,
                                                 },
                                             });
-                                        }}
+                                        }, heartRateMaxInputRef)}
                                         editable={filterOptions.heartRate.enabled}
                                     />
                                 </View>

@@ -211,7 +211,6 @@ export default function TodoScreen() {
 
   const scheduleTaskNotification = async (task: Task) => {
     if (!task.dueDate) return null;
-
     const reminderDate = new Date(task.dueDate);
     reminderDate.setDate(reminderDate.getDate() - 1);
 
@@ -244,6 +243,7 @@ export default function TodoScreen() {
         data: { taskId: task.id },
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: 1,
       },
     });
