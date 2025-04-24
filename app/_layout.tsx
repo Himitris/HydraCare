@@ -18,12 +18,6 @@ import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import AppSwitcher from './AppSwitcher';
-import { registerWidgets } from 'expo-widgets';
-import HydraCareWidget from '../widgets/HydraCareWidget';
-
-
-// Enregistrer les widgets
-registerWidgets({ HydraCareWidget });
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
