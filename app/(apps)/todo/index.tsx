@@ -1,56 +1,49 @@
 // app/(apps)/todo/index.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Modal,
-  TextInput,
-  Dimensions,
-  Alert,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeInDown,
-  FadeIn,
-  FadeOut,
-  withSpring,
-  useSharedValue,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
-import {
-  CheckSquare,
-  Plus,
-  Calendar,
-  X,
-  Square,
-  Clock,
-  AlertCircle,
-  Trash2,
-  Edit2,
-  Tag as TagIcon,
-  Bell,
-} from 'lucide-react-native';
-import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
-  format,
-  isBefore,
-  isToday,
-  isTomorrow,
-  isPast,
   differenceInDays,
+  format,
+  isPast,
+  isToday,
+  isTomorrow
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
+import { StatusBar } from 'expo-status-bar';
+import {
+  Calendar,
+  CheckSquare,
+  Clock,
+  Edit2,
+  Plus,
+  Square,
+  Trash2,
+  X
+} from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut
+} from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 const STORAGE_KEY = '@hydracare/todo_tasks';

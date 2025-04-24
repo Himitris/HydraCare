@@ -1,39 +1,38 @@
 // app/(apps)/todo/calendar.tsx
-import React, { useState, useEffect } from 'react';
+import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  StyleSheet,
-  View,
-  Text,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Dimensions,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  isSameDay,
+  isToday,
+  startOfMonth,
+  subMonths,
+} from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { StatusBar } from 'expo-status-bar';
 import {
   Calendar as CalendarIcon,
   CheckSquare,
-  Square,
   ChevronLeft,
   ChevronRight,
+  Square,
 } from 'lucide-react-native';
-import { useAppContext } from '@/context/AppContext';
-import Colors from '@/constants/Colors';
+import React, { useEffect, useState } from 'react';
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  isSameDay,
-  addMonths,
-  subMonths,
-  isToday,
-} from 'date-fns';
-import { fr } from 'date-fns/locale';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 const STORAGE_KEY = '@hydracare/todo_tasks';

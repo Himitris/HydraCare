@@ -1,9 +1,9 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { Home, BarChart2, Settings } from 'lucide-react-native';
-import { Platform } from 'react-native';
-import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { Tabs } from 'expo-router';
+import { BarChart2, Home, Settings } from 'lucide-react-native';
+import React from 'react';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   const { isDarkMode } = useAppContext();

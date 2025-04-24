@@ -1,30 +1,28 @@
 // app/(apps)/todo/tags.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Dimensions,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { format, isAfter, subDays } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { StatusBar } from 'expo-status-bar';
 import {
-  Tag,
-  TrendingUp,
+  AlertCircle,
   CheckCircle,
   Clock,
-  AlertCircle,
+  Tag,
+  TrendingUp,
 } from 'lucide-react-native';
-import { useAppContext } from '@/context/AppContext';
-import Colors from '@/constants/Colors';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { format, subDays, isAfter } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import React, { useEffect, useState } from 'react';
+import {
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 const STORAGE_KEY = '@hydracare/todo_tasks';

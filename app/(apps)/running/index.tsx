@@ -1,55 +1,51 @@
 // app/(apps)/running/index.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Modal,
-  TextInput,
-  Dimensions,
-  Alert,
-  Image,
-} from 'react-native';
-import { Link } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeInDown,
-  FadeIn,
-  FadeOut,
-  withSpring,
-  useSharedValue,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
-import {
-  Activity,
-  Plus,
-  Calendar,
-  X,
-  Smile,
-  Meh,
-  Frown,
-  ChevronRight,
-  Edit2,
-  Trash2,
-  Filter,
-  Download,
-  BarChart,
-  Clock,
-  Target,
-  Award,
-} from 'lucide-react-native';
-import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { format, isAfter, isBefore, subMonths } from 'date-fns';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as Haptics from 'expo-haptics';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import {
+  Activity,
+  Award,
+  BarChart,
+  Calendar,
+  ChevronRight,
+  Clock,
+  Download,
+  Edit2,
+  Filter,
+  Frown,
+  Meh,
+  Plus,
+  Smile,
+  Target,
+  Trash2,
+  X,
+} from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut
+} from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 const STORAGE_KEY = '@hydracare/running_sessions';

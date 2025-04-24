@@ -1,10 +1,10 @@
 // app/(apps)/todo/_layout.tsx
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { CheckSquare, Calendar, Tag } from 'lucide-react-native';
-import { Platform } from 'react-native';
-import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { Tabs } from 'expo-router';
+import { Calendar, CheckSquare, Tag } from 'lucide-react-native';
+import React from 'react';
+import { Platform } from 'react-native';
 
 export default function TodoLayout() {
   const { isDarkMode } = useAppContext();

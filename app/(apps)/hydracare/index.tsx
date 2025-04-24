@@ -1,32 +1,32 @@
+import WaterGlass from '@/components/hydracare/WaterGlass';
+import ZenButton from '@/components/hydracare/ZenButton';
+import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { CheckCircle, Minus } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  SafeAreaView,
-  Platform,
   Dimensions,
-  Switch,
   Image,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
   Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
-import { useAppContext } from '@/context/AppContext';
-import Colors from '@/constants/Colors';
-import WaterGlass from '@/components/WaterGlass';
-import ZenButton from '@/components/ZenButton';
-import { Minus, CheckCircle } from 'lucide-react-native';
-import { TouchableOpacity } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 

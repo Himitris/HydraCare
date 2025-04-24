@@ -1,11 +1,11 @@
-import React from 'react';
-import { StyleSheet, View, Text, ScrollView, StatusBar } from 'react-native';
-import { useAppContext } from '@/context/AppContext';
+import DailyHistoryChart from '@/components/hydracare/DailyHistoryChart';
 import Colors from '@/constants/Colors';
-import DailyHistoryChart from '@/components/DailyHistoryChart';
+import { useAppContext } from '@/context/AppContext';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart, Clock, Target } from 'lucide-react-native';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
+import React from 'react';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 export default function HistoryScreen() {
   const { history, settings, dailyProgress, isDarkMode } = useAppContext();

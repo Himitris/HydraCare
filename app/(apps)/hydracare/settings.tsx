@@ -1,32 +1,32 @@
-import React, { useState } from 'react';
+import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { changeLanguage } from '@/i18n';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
+import { NotificationService } from '@/services/NotificationService';
 import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import {
-  Moon,
-  Sun,
+  AlertCircle,
   Bell,
   BellOff,
-  Scale,
-  Target,
   Globe,
+  Moon,
   RotateCcw,
-  AlertCircle,
+  Scale,
+  Sun,
+  Target,
 } from 'lucide-react-native';
-import { useAppContext } from '@/context/AppContext';
-import Colors from '@/constants/Colors';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
-import { changeLanguage } from '@/i18n';
-import { NotificationService } from '@/services/NotificationService';
+import React, { useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function SettingsScreen() {
   const {

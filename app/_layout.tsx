@@ -1,16 +1,6 @@
 // app/_layout.tsx
-import 'react-native-gesture-handler';
-import 'react-native-reanimated';
-import React, { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppContextProvider, useAppContext } from '@/context/AppContext';
 import { RunningContextProvider } from '@/context/RunningContext';
-import AppSwitcher from './AppSwitcher';
 import { initializeI18n } from '@/i18n';
 import {
   Inter_400Regular,
@@ -18,6 +8,16 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
+import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import 'react-native-reanimated';
+import AppSwitcher from './AppSwitcher';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();

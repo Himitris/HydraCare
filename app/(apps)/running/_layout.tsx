@@ -1,10 +1,10 @@
 // app/(apps)/running/_layout.tsx
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { Home, Map, Trophy, Filter } from 'lucide-react-native';
-import { Platform } from 'react-native';
-import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { Tabs } from 'expo-router';
+import { Filter, Home } from 'lucide-react-native';
+import React from 'react';
+import { Platform } from 'react-native';
 
 export default function RunningLayout() {
   const { isDarkMode } = useAppContext();
