@@ -4,7 +4,7 @@ import { useAppContext } from '@/context/AppContext';
 import { useTranslation } from '@/i18n/hooks/useTranslation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart, Clock, Target } from 'lucide-react-native';
-import React from 'react';
+import React, { useMemo } from 'react'; // Importez useMemo
 import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 export default function HistoryScreen() {
@@ -12,8 +12,8 @@ export default function HistoryScreen() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const { t } = useTranslation();
 
-  // Calculate statistics
-  const calculateStats = () => {
+  // Utilisez useMemo pour calculer les statistiques uniquement lorsque history ou settings change
+  const stats = useMemo(() => {
     const today = new Date();
     const last7Days: { date: Date; amount: number }[] = [];
     const last30Days: { date: Date; amount: number }[] = [];
@@ -64,9 +64,7 @@ export default function HistoryScreen() {
       daysGoalMet,
       totalDays: 30,
     };
-  };
-
-  const stats = calculateStats();
+  }, [history, settings.dailyGoal]); // Dépendances du useMemo
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -52,8 +52,8 @@ export default function DailyHistoryChart() {
   // Configure week to start on Monday
   const weekStartsOn = 1; // Monday
 
-  // Check if we can navigate forward
-  const canNavigateForward = () => {
+  // Check if we can navigate forward - mémorisé pour éviter les recalculs
+  const canNavigateForward = useMemo(() => {
     if (viewMode === 'week') {
       const nextWeekStart = addDays(
         startOfWeek(selectedDate, { weekStartsOn }),
@@ -65,10 +65,10 @@ export default function DailyHistoryChart() {
       const nextMonthStart = addDays(startOfMonth(selectedDate), 32);
       return nextMonthStart < new Date();
     }
-  };
+  }, [viewMode, selectedDate, weekStartsOn]);
 
-  // Generate data for the selected period
-  const generateChartData = (): ChartDataItem[] => {
+  // Generate data for the selected period - mémorisé avec dépendances appropriées
+  const chartData: ChartDataItem[] = useMemo(() => {
     const data: ChartDataItem[] = [];
 
     if (viewMode === 'week') {
@@ -148,23 +148,23 @@ export default function DailyHistoryChart() {
     }
 
     return data;
-  };
+  }, [history, settings.dailyGoal, selectedDate, viewMode, weekStartsOn]);
 
-  const chartData: ChartDataItem[] = generateChartData();
+  // Find max value for scaling - mémorisé car dépend uniquement de chartData
+  const maxPercentage = useMemo(
+    () => Math.max(...chartData.map((d) => d.percentage), 100),
+    [chartData]
+  );
 
-  // Find max value for scaling
-  const maxPercentage = Math.max(...chartData.map((d) => d.percentage), 100);
-  const maxBarHeight = 120;
-
-  // Navigate weeks/months
-  const navigateBack = () => {
+  // Navigate weeks/months - avec useCallback pour éviter les recréations de fonction
+  const navigateBack = useCallback(() => {
     setSelectedDate((prev) =>
       viewMode === 'week' ? subDays(prev, 7) : subDays(startOfMonth(prev), 1)
     );
-  };
+  }, [viewMode]);
 
-  const navigateForward = () => {
-    if (canNavigateForward()) {
+  const navigateForward = useCallback(() => {
+    if (canNavigateForward) {
       if (viewMode === 'week') {
         const nextWeekStart = addDays(
           startOfWeek(selectedDate, { weekStartsOn }),
@@ -182,15 +182,15 @@ export default function DailyHistoryChart() {
         setSelectedDate(startOfMonth(nextMonth));
       }
     }
-  };
+  }, [canNavigateForward, viewMode, selectedDate, weekStartsOn]);
 
-  // Navigate to today
-  const navigateToToday = () => {
+  // Navigate to today - avec useCallback
+  const navigateToToday = useCallback(() => {
     setSelectedDate(new Date());
-  };
+  }, []);
 
-  // Get selected day/week details
-  const getSelectedDetails = () => {
+  // Get selected day/week details - mémorisé pour éviter les calculs répétés
+  const selectedDetails = useMemo(() => {
     if (viewMode === 'week') {
       const dateKey = `${selectedDate.getFullYear()}-${
         selectedDate.getMonth() + 1
@@ -228,9 +228,7 @@ export default function DailyHistoryChart() {
         isWeek: true,
       };
     }
-  };
-
-  const selectedDetails = getSelectedDetails();
+  }, [history, settings.dailyGoal, selectedDate, viewMode, weekStartsOn]);
 
   return (
     <View style={styles.container}>
@@ -316,8 +314,8 @@ export default function DailyHistoryChart() {
 
         <TouchableOpacity
           onPress={navigateForward}
-          style={[styles.navButton, !canNavigateForward() && { opacity: 0.3 }]}
-          disabled={!canNavigateForward()}
+          style={[styles.navButton, !canNavigateForward && { opacity: 0.3 }]}
+          disabled={!canNavigateForward}
         >
           <ChevronRight size={24} color={colors.text} />
         </TouchableOpacity>

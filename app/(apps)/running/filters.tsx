@@ -7,30 +7,30 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
-    Calendar,
-    CheckCircle,
-    ChevronDown,
-    ChevronUp,
-    Circle,
-    Download,
-    Filter,
-    RefreshCw,
-    Sliders,
-    X,
+  Calendar,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  Download,
+  Filter,
+  RefreshCw,
+  Sliders,
+  X,
 } from 'lucide-react-native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Modal,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function RunningFiltersScreen() {

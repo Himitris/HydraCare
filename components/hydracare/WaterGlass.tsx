@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -28,12 +28,17 @@ interface WaterGlassProps {
 }
 
 const { width, height } = Dimensions.get('window');
-const GLASS_HEIGHT = height * 0.28;
-const GLASS_WIDTH = width * 0.5;
+// Mémorisons ces constantes pour éviter de les recalculer
+const GLASS_HEIGHT = useMemo(() => height * 0.28, [height]);
+const GLASS_WIDTH = useMemo(() => width * 0.5, [width]);
 
 export default function WaterGlass({ progress }: WaterGlassProps) {
   const { isDarkMode } = useAppContext();
-  const colors = isDarkMode ? Colors.dark : Colors.light;
+  // Mémorise le thème de couleurs pour éviter des recalculs inutiles quand isDarkMode change
+  const colors = useMemo(
+    () => (isDarkMode ? Colors.dark : Colors.light),
+    [isDarkMode]
+  );
 
   // Animation values
   const waterLevel = useSharedValue(0);
@@ -68,7 +73,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
     }
   }, [progress]);
 
-  // Gentle wave animations
+  // Gentle wave animations - séparées dans un effet pour mieux isoler les dépendances
   useEffect(() => {
     waveOffset.value = withRepeat(
       withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
@@ -87,8 +92,11 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
       -1,
       true
     );
+  }, []);
 
-    // Bubble animations
+  // Bubble animations dans un effet séparé
+  useEffect(() => {
+    // Factorisation de la fonction d'animation pour éviter la duplication
     const animateBubble = (
       bubbleValue: Animated.SharedValue<number>,
       delay: number,
@@ -139,11 +147,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
         translateX: interpolate(waveOffset.value, [0, 1], [-10, 10]),
       },
       {
-        skewX: `${interpolate(
-          waveOffset.value,
-          [0, 0.5, 1],
-          [0, 10, 0]
-        )}deg`,
+        skewX: `${interpolate(waveOffset.value, [0, 0.5, 1], [0, 10, 0])}deg`,
       },
     ],
   }));
@@ -176,7 +180,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
     opacity: interpolate(splashEffect.value, [0, 1], [0, 0.4]),
   }));
 
-  // Bubble animation styles with more organic movement
+  // Factorisation de la création du style des bulles
   const createBubbleStyle = (
     bubbleValue: Animated.SharedValue<number>,
     offsetX: number

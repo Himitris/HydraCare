@@ -1,14 +1,14 @@
+import { NotificationService } from '@/services/NotificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   createContext,
   useContext,
-  useState,
   useEffect,
   useRef,
+  useState,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, AppState } from 'react-native';
-import { changeLanguage } from '@/i18n';
-import { NotificationService } from '@/services/NotificationService';
+import { AppState } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
 // Defining types for our context
 interface UserSettings {
@@ -17,7 +17,6 @@ interface UserSettings {
   darkMode: boolean;
   remindersEnabled: boolean;
   reminderFrequency: number; // in minutes
-  language: 'fr' | 'en'; // Added language property
 }
 
 interface WaterIntake {
@@ -57,7 +56,6 @@ const defaultSettings: UserSettings = {
   darkMode: false,
   remindersEnabled: false, // Start with notifications disabled
   reminderFrequency: 60, // minutes
-  language: 'fr', // Default to French
 };
 
 // Create context with default values
@@ -281,9 +279,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
             const parsedSettings = JSON.parse(savedSettingsRaw);
             // Make sure remindersEnabled is false by default if not set
             setSettings({ ...defaultSettings, ...parsedSettings });
-            if (parsedSettings.language) {
-              await changeLanguage(parsedSettings.language);
-            }
           } catch (e) {
             console.error('Error parsing settings:', e);
             setSettings(defaultSettings);
@@ -403,6 +398,28 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
       [today]: updatedTodayIntake,
     };
     setHistory(updatedHistory);
+
+    if (Platform.OS === 'android') {
+      try {
+        const currentAmount =
+          Math.round(dailyProgress * settings.dailyGoal) + amount;
+
+        // Utilisation de SharedPreferences pour le widget
+        const { SharedStorage } = NativeModules;
+        if (SharedStorage) {
+          await SharedStorage.setItem(
+            'dailyGoal',
+            settings.dailyGoal.toString()
+          );
+          await SharedStorage.setItem(
+            'currentIntake',
+            currentAmount.toString()
+          );
+        }
+      } catch (error) {
+        console.error('Error syncing widget data:', error);
+      }
+    }
 
     // Save immediately
     try {

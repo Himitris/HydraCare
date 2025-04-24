@@ -1,6 +1,5 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
-import { changeLanguage } from '@/i18n';
 import { useTranslation } from '@/i18n/hooks/useTranslation';
 import { NotificationService } from '@/services/NotificationService';
 import {
@@ -55,12 +54,6 @@ export default function SettingsScreen() {
     return settings.preferredUnit === 'ml'
       ? `${settings.dailyGoal} ml`
       : `${Math.round(settings.dailyGoal * 0.033814)} oz`;
-  };
-
-  const handleLanguageChange = async () => {
-    const newLanguage = settings.language === 'fr' ? 'en' : 'fr';
-    await changeLanguage(newLanguage);
-    updateSettings({ language: newLanguage });
   };
 
   const handleResetData = () => {
@@ -140,27 +133,6 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Language setting */}
-          <TouchableOpacity
-            style={styles.setting}
-            onPress={handleLanguageChange}
-          >
-            <View style={styles.settingInfo}>
-              <Globe color={colors.text} size={24} />
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: colors.text }]}>
-                  {t('settings.language')}
-                </Text>
-                <Text
-                  style={[styles.settingValue, { color: colors.primary[500] }]}
-                >
-                  {settings.language === 'fr'
-                    ? t('settings.french')
-                    : t('settings.english')}
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
 
           {/* Daily goal setting */}
           <TouchableOpacity

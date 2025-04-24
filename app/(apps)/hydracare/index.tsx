@@ -6,7 +6,7 @@ import { useTranslation } from '@/i18n/hooks/useTranslation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { CheckCircle, Minus } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Dimensions,
   Image,
@@ -33,7 +33,13 @@ const { width, height } = Dimensions.get('window');
 export default function HomeScreen() {
   const { settings, dailyProgress, addWaterIntake, isDarkMode } =
     useAppContext();
-  const colors = isDarkMode ? Colors.dark : Colors.light;
+
+  // Mémoriser les couleurs pour éviter des recalculs inutiles quand isDarkMode change
+  const colors = useMemo(
+    () => (isDarkMode ? Colors.dark : Colors.light),
+    [isDarkMode]
+  );
+
   const [correctionMode, setCorrectionMode] = useState(false);
   const { t } = useTranslation();
 
@@ -43,6 +49,7 @@ export default function HomeScreen() {
   const correctionModeOpacity = useSharedValue(0);
   const correctionModeScale = useSharedValue(0.95);
 
+  // Setup background animations only once
   useEffect(() => {
     // Background wave animation
     backgroundOpacity.value = withRepeat(
@@ -58,43 +65,50 @@ export default function HomeScreen() {
     );
   }, []);
 
+  // Animation styles for background
   const backgroundStyle = useAnimatedStyle(() => ({
     opacity: backgroundOpacity.value,
     transform: [{ translateY: backgroundTranslateY.value }],
   }));
 
-  // Format amounts
-  const formattedGoal =
-    settings.preferredUnit === 'ml'
-      ? `${settings.dailyGoal} ml`
-      : `${Math.round(settings.dailyGoal * 0.033814)} oz`;
+  // Format amounts - useMemo pour éviter de recalculer les valeurs à chaque rendu
+  const formattedValues = useMemo(() => {
+    const formattedGoal =
+      settings.preferredUnit === 'ml'
+        ? `${settings.dailyGoal} ml`
+        : `${Math.round(settings.dailyGoal * 0.033814)} oz`;
 
-  const currentAmount = Math.round(dailyProgress * settings.dailyGoal);
-  const formattedCurrent =
-    settings.preferredUnit === 'ml'
-      ? `${currentAmount}`
-      : `${Math.round(currentAmount * 0.033814)}`;
+    const currentAmount = Math.round(dailyProgress * settings.dailyGoal);
+    const formattedCurrent =
+      settings.preferredUnit === 'ml'
+        ? `${currentAmount}`
+        : `${Math.round(currentAmount * 0.033814)}`;
 
-  // Zen quotes that rotate daily
-  const zenQuotes = [
-    t('quotes.q1'),
-    t('quotes.q2'),
-    t('quotes.q3'),
-    t('quotes.q4'),
-    t('quotes.q5'),
-  ];
+    return { formattedGoal, formattedCurrent };
+  }, [settings.preferredUnit, settings.dailyGoal, dailyProgress]);
 
-  const quoteIndex = new Date().getDay() % zenQuotes.length;
+  // Zen quotes that rotate daily - useMemo pour éviter de recalculer à chaque rendu
+  const zenQuote = useMemo(() => {
+    const zenQuotes = [
+      t('quotes.q1'),
+      t('quotes.q2'),
+      t('quotes.q3'),
+      t('quotes.q4'),
+      t('quotes.q5'),
+    ];
+    const quoteIndex = new Date().getDay() % zenQuotes.length;
+    return zenQuotes[quoteIndex];
+  }, [t]); // Dépend uniquement de la fonction de traduction
 
-  // Check if goal is reached
-  const goalReached = dailyProgress >= 1;
+  // Check if goal is reached - useMemo pour éviter de recalculer à chaque rendu
+  const goalReached = useMemo(() => dailyProgress >= 1, [dailyProgress]);
 
   // Automatically disable correction mode when at 0
   useEffect(() => {
     if (dailyProgress <= 0 && correctionMode) {
       setCorrectionMode(false);
     }
-  }, [dailyProgress]);
+  }, [dailyProgress, correctionMode]);
 
   // Animate correction mode toggle
   useEffect(() => {
@@ -112,19 +126,30 @@ export default function HomeScreen() {
     transform: [{ scale: correctionModeScale.value }],
   }));
 
-  const handleWaterChange = (amount: number) => {
-    if (correctionMode) {
-      const currentTotal = dailyProgress * settings.dailyGoal;
-      if (currentTotal - amount >= 0) {
-        addWaterIntake(-amount);
+  // handleWaterChange optimisé avec useCallback pour éviter de recréer la fonction à chaque render
+  const handleWaterChange = useCallback(
+    (amount: number) => {
+      if (correctionMode) {
+        const currentTotal = dailyProgress * settings.dailyGoal;
+        if (currentTotal - amount >= 0) {
+          addWaterIntake(-amount);
+        }
+      } else {
+        const currentTotal = dailyProgress * settings.dailyGoal;
+        if (currentTotal + amount <= settings.dailyGoal * 1.1) {
+          addWaterIntake(amount);
+        }
       }
-    } else {
-      const currentTotal = dailyProgress * settings.dailyGoal;
-      if (currentTotal + amount <= settings.dailyGoal * 1.1) {
-        addWaterIntake(amount);
-      }
+    },
+    [correctionMode, dailyProgress, settings.dailyGoal, addWaterIntake]
+  );
+
+  // Toggle correction mode avec useCallback
+  const toggleCorrectionMode = useCallback(() => {
+    if (dailyProgress > 0) {
+      setCorrectionMode((prev) => !prev);
     }
-  };
+  }, [dailyProgress]);
 
   return (
     <View style={styles.container}>
@@ -181,13 +206,13 @@ export default function HomeScreen() {
               <Text
                 style={[styles.currentAmount, { color: colors.primary[600] }]}
               >
-                {formattedCurrent}
+                {formattedValues.formattedCurrent}
               </Text>
               <Text style={[styles.unit, { color: colors.primary[500] }]}>
                 {settings.preferredUnit}
               </Text>
               <Text style={[styles.goalText, { color: colors.neutral[400] }]}>
-                {t('home.of')} {formattedGoal}
+                {t('home.of')} {formattedValues.formattedGoal}
               </Text>
             </View>
 
@@ -219,9 +244,7 @@ export default function HomeScreen() {
                     : 'rgba(255, 255, 255, 0.8)',
                 },
               ]}
-              onPress={() =>
-                dailyProgress > 0 && setCorrectionMode(!correctionMode)
-              }
+              onPress={toggleCorrectionMode}
               activeOpacity={0.8}
             >
               <View style={styles.correctionTextContainer}>
@@ -300,7 +323,7 @@ export default function HomeScreen() {
           {/* Zen quote footer */}
           <View style={styles.footer}>
             <Text style={[styles.quote, { color: colors.neutral[500] }]}>
-              "{zenQuotes[quoteIndex]}"
+              "{zenQuote}"
             </Text>
           </View>
         </View>
@@ -309,6 +332,7 @@ export default function HomeScreen() {
   );
 }
 
+// Styles extraits en dehors du composant pour éviter de les recréer à chaque rendu
 const styles = StyleSheet.create({
   container: {
     flex: 1,
