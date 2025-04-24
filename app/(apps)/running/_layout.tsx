@@ -2,7 +2,7 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { Tabs } from 'expo-router';
-import { Filter, Home } from 'lucide-react-native';
+import { BarChart2, Filter, Home } from 'lucide-react-native';
 import React from 'react';
 import { Platform } from 'react-native';
 
@@ -37,8 +37,18 @@ export default function RunningLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: 'Journal',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="statistics"
+        options={{
+          title: 'Statistiques',
+          tabBarIcon: ({ color, size }) => (
+            <BarChart2 color={color} size={size} />
+          ),
         }}
       />
 

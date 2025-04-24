@@ -37,7 +37,6 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 // Import des composants extraits
 import SessionCard from '@/components/running/SessionCard';
-import StatsCard from '@/components/running/StatsCard';
 import EmptyState from '@/components/running/EmptyState';
 
 const { width, height } = Dimensions.get('window');
@@ -340,9 +339,6 @@ export default function RunningScreen() {
             <EmptyState colors={colors} />
           ) : (
             <>
-              {/* Carte de statistiques et d'analyse */}
-              <StatsCard sessions={sessions} colors={colors} />
-
               {/* Liste des sessions */}
               {sessions.map((session, index) => (
                 <SessionCard

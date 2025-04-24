@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -28,17 +28,14 @@ interface WaterGlassProps {
 }
 
 const { width, height } = Dimensions.get('window');
-// Mémorisons ces constantes pour éviter de les recalculer
-const GLASS_HEIGHT = useMemo(() => height * 0.28, [height]);
-const GLASS_WIDTH = useMemo(() => width * 0.5, [width]);
+// Defining constants outside of component (not using hooks here)
+const GLASS_HEIGHT = height * 0.28;
+const GLASS_WIDTH = width * 0.5;
 
 export default function WaterGlass({ progress }: WaterGlassProps) {
   const { isDarkMode } = useAppContext();
   // Mémorise le thème de couleurs pour éviter des recalculs inutiles quand isDarkMode change
-  const colors = useMemo(
-    () => (isDarkMode ? Colors.dark : Colors.light),
-    [isDarkMode]
-  );
+  const colors = isDarkMode ? Colors.dark : Colors.light;
 
   // Animation values
   const waterLevel = useSharedValue(0);
