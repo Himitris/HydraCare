@@ -29,9 +29,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTranslation } from '@/i18n/hooks/useTranslation';
 
+// Recalcul de la taille des cellules en fonction de la taille disponible
 const { width } = Dimensions.get('window');
-const CELL_SIZE = width / 8; // 7 days + 1 column for labels
-const CELL_MARGIN = 2;
+// Réduction de la largeur pour s'assurer que tout le calendrier s'affiche correctement
+const AVAILABLE_WIDTH = width - 80; // 40px de marge pour éviter le débordement
+const CELL_SIZE = AVAILABLE_WIDTH / 7; // Réparti sur 7 colonnes seulement
+const CELL_MARGIN = 1; // Réduction des marges
 const ACTUAL_CELL_SIZE = CELL_SIZE - CELL_MARGIN * 2;
 
 interface MonthlyHeatmapProps {
@@ -385,13 +388,14 @@ const MonthlyHeatmap = ({ onDaySelect }: MonthlyHeatmapProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    padding: 8, // Réduit le padding pour avoir plus d'espace
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 8,
   },
   monthTitle: {
     fontSize: 18,
@@ -410,11 +414,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
   },
   calendarGrid: {
-    marginBottom: 16,
+    marginBottom: 16
   },
   calendarRow: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: 2, // Réduit l'espacement vertical
   },
   calendarCell: {
     width: ACTUAL_CELL_SIZE,
@@ -443,7 +447,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   legendText: {
-    fontSize: 12,
+    fontSize: 11, // Taille de texte réduite pour la légende
     fontFamily: 'Inter-Regular',
   },
   statsContainer: {
