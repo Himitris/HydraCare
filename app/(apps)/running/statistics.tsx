@@ -14,10 +14,11 @@ import {
   TrendingUp,
   Heart,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -27,7 +28,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-// Importer les nouveaux composants de visualisation
+// Importer les composants de visualisation
 import HeartRateChart from '@/components/running/charts/HeartRateChart';
 import SeasonalPerformanceChart from '@/components/running/charts/SeasonalPerformanceChart';
 import PerformanceComparisonChart from '@/components/running/charts/PerformanceComparisonChart';
@@ -43,12 +44,22 @@ type StatsPeriod = '7d' | '30d' | '90d' | 'all';
 export default function RunningStatisticsScreen() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-  const { sessions, isLoading } = useRunningData();
+  const { sessions, isLoading, loadSessions } = useRunningData();
   const [period, setPeriod] = useState<StatsPeriod>('30d');
   const [activeTab, setActiveTab] = useState<
     'overview' | 'heart' | 'season' | 'compare'
   >('overview');
   const [filteredSessions, setFilteredSessions] = useState(sessions);
+
+  // État pour le rafraîchissement
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fonction pour gérer le rafraîchissement
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadSessions();
+    setRefreshing(false);
+  }, [loadSessions]);
 
   // Filtrer les sessions selon la période sélectionnée
   useEffect(() => {
@@ -634,6 +645,16 @@ export default function RunningStatisticsScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.secondary[500]]}
+              tintColor={colors.secondary[500]}
+              title="Actualisation..."
+              titleColor={colors.text}
+            />
+          }
         >
           {activeTab === 'overview' && renderOverviewTab()}
 
