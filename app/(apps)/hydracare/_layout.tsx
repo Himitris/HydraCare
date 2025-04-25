@@ -1,14 +1,16 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { Tabs } from 'expo-router';
-import { BarChart2, Home, Settings } from 'lucide-react-native';
+import { BarChart2, Home, Settings, TrendingUp } from 'lucide-react-native';
 import React from 'react';
 import { Platform } from 'react-native';
+import { useTranslation } from '@/i18n/hooks/useTranslation';
 
 export default function TabLayout() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-  
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -40,20 +42,34 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
-      
+
+      <Tabs.Screen
+        name="insights"
+        options={{
+          title: 'Tendances',
+          tabBarIcon: ({ color, size }) => (
+            <TrendingUp color={color} size={size} />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => <BarChart2 color={color} size={size} />,
+          title: 'Historique',
+          tabBarIcon: ({ color, size }) => (
+            <BarChart2 color={color} size={size} />
+          ),
         }}
       />
-      
+
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
+          title: 'Réglages',
+          tabBarIcon: ({ color, size }) => (
+            <Settings color={color} size={size} />
+          ),
         }}
       />
     </Tabs>

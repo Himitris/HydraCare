@@ -1,3 +1,4 @@
+// app/(apps)/running/statistics.tsx
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { useRunningData } from '@/hooks/useRunningData';
@@ -6,12 +7,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
   Activity,
-  Award,
   BarChart2,
   Calendar,
   ChevronDown,
   Clock,
   TrendingUp,
+  Heart,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -24,11 +25,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
-import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+
+// Importer les nouveaux composants de visualisation
+import HeartRateChart from '@/components/running/charts/HeartRateChart';
+import SeasonalPerformanceChart from '@/components/running/charts/SeasonalPerformanceChart';
+import PerformanceComparisonChart from '@/components/running/charts/PerformanceComparisonChart';
 
 // Importer les fonctions de formatage
-import { formatPace } from '@/utils/formatters';
+import { formatPace, formatDistance, formatDuration } from '@/utils/formatters';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +45,9 @@ export default function RunningStatisticsScreen() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const { sessions, isLoading } = useRunningData();
   const [period, setPeriod] = useState<StatsPeriod>('30d');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'heart' | 'season' | 'compare'
+  >('overview');
   const [filteredSessions, setFilteredSessions] = useState(sessions);
 
   // Filtrer les sessions selon la période sélectionnée
@@ -224,86 +232,10 @@ export default function RunningStatisticsScreen() {
     all: "Tout l'historique",
   };
 
-  // Données pour le graphique de répartition des ressentis
-  const feelingChartData = React.useMemo(() => {
-    const feelingColors = {
-      Excellent: colors.success[500],
-      Bien: colors.secondary[500],
-      Moyen: colors.warning[500],
-      Difficile: colors.error[500],
-    };
-
-    return Object.entries(stats.feelingCounts)
-      .map(([feeling, count]) => ({
-        name: feeling,
-        count,
-        color: feelingColors[feeling as keyof typeof feelingColors],
-        legendFontColor: colors.text,
-        legendFontSize: 12,
-      }))
-      .filter((item) => item.count > 0);
-  }, [stats.feelingCounts, colors]);
-
-  // Configuration du graphique de distance par semaine
-  const distanceChartConfig = {
-    backgroundColor: 'transparent',
-    backgroundGradientFrom: 'transparent',
-    backgroundGradientTo: 'transparent',
-    color: () =>
-      isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
-    labelColor: () =>
-      isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
-    style: {
-      borderRadius: 16,
-    },
-    propsForDots: {
-      r: '6',
-      strokeWidth: '2',
-      stroke: colors.secondary[500],
-    },
-  };
-
-  // Configuration du graphique d'allure avec formatage amélioré
-  const paceChartConfig = {
-    ...distanceChartConfig,
-    // Formater les labels d'axe Y pour afficher min:sec au lieu de decimal
-    formatYLabel: (value: string) => formatPace(parseFloat(value)),
-  };
-
-  // Données pour le graphique de distance par semaine
-  const distanceChartData = React.useMemo(() => {
-    return {
-      labels: stats.distanceByWeek.map((d) => d.week).slice(-6), // Limiter à 6 dernières semaines pour la lisibilité
-      datasets: [
-        {
-          data: stats.distanceByWeek.map((d) => d.distance).slice(-6),
-          color: () => colors.secondary[500],
-          strokeWidth: 2,
-        },
-      ],
-      legend: ['Distance (km)'],
-    };
-  }, [stats.distanceByWeek, colors]);
-
-  // Données pour le graphique de progression d'allure
-  const paceChartData = React.useMemo(() => {
-    return {
-      labels: stats.paceProgression.map((p) => p.date).slice(-10), // Limiter aux 10 dernières courses
-      datasets: [
-        {
-          data: stats.paceProgression.map((p) => p.pace).slice(-10),
-          color: () => colors.primary[500],
-          strokeWidth: 2,
-        },
-      ],
-      legend: ['Allure (min/km)'],
-    };
-  }, [stats.paceProgression, colors]);
-
   if (isLoading) {
     return (
       <Animated.View
-        entering={FadeIn.duration(300)}
+        entering={FadeInDown.duration(300)}
         style={[styles.container, { backgroundColor: colors.background }]}
       >
         <LinearGradient
@@ -325,6 +257,188 @@ export default function RunningStatisticsScreen() {
     );
   }
 
+  // Fonction de rendu pour la vue des statistiques générales
+  const renderOverviewTab = () => (
+    <>
+      {/* Cartes de statistiques */}
+      <View style={styles.statsCardGrid}>
+        <Animated.View entering={FadeInDown.delay(50)} style={styles.statsCard}>
+          <View
+            style={[
+              styles.statsCardContent,
+              { backgroundColor: colors.cardBackground },
+            ]}
+          >
+            <View style={styles.statsCardHeader}>
+              <Activity size={20} color={colors.secondary[500]} />
+              <Text style={[styles.statsCardTitle, { color: colors.text }]}>
+                Activité Totale
+              </Text>
+            </View>
+            <View style={styles.statsCardBody}>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {stats.totalSessions}
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Sessions
+                </Text>
+              </View>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {stats.totalDistance.toFixed(1)} km
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Distance
+                </Text>
+              </View>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {Math.floor(stats.totalDuration / 60)}h{' '}
+                  {Math.round(stats.totalDuration % 60)}min
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Durée
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(100)}
+          style={styles.statsCard}
+        >
+          <View
+            style={[
+              styles.statsCardContent,
+              { backgroundColor: colors.cardBackground },
+            ]}
+          >
+            <View style={styles.statsCardHeader}>
+              <TrendingUp size={20} color={colors.primary[500]} />
+              <Text style={[styles.statsCardTitle, { color: colors.text }]}>
+                Moyennes
+              </Text>
+            </View>
+            <View style={styles.statsCardBody}>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {stats.avgDistance.toFixed(1)} km
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Distance
+                </Text>
+              </View>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {Math.round(stats.avgDuration)} min
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Durée
+                </Text>
+              </View>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {formatPace(stats.avgPace)} /km
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Allure
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+      </View>
+
+      {/* Records et performances */}
+      <Animated.View entering={FadeInDown.delay(150)}>
+        <View
+          style={[
+            styles.recordsCard,
+            { backgroundColor: colors.cardBackground },
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <BarChart2 size={20} color={colors.success[500]} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Meilleures performances
+            </Text>
+          </View>
+
+          <View style={styles.recordsGrid}>
+            <View style={styles.recordItem}>
+              <Text
+                style={[styles.recordLabel, { color: colors.neutral[500] }]}
+              >
+                Course la plus longue
+              </Text>
+              <Text style={[styles.recordValue, { color: colors.text }]}>
+                {stats.longestRun
+                  ? `${stats.longestRun.distance?.toFixed(1)} km`
+                  : '-'}
+              </Text>
+              <Text style={[styles.recordDate, { color: colors.neutral[400] }]}>
+                {stats.longestRun
+                  ? format(new Date(stats.longestRun.date), 'dd/MM/yyyy')
+                  : ''}
+              </Text>
+            </View>
+
+            <View style={styles.recordItem}>
+              <Text
+                style={[styles.recordLabel, { color: colors.neutral[500] }]}
+              >
+                Meilleure allure
+              </Text>
+              <Text style={[styles.recordValue, { color: colors.text }]}>
+                {stats.bestPace
+                  ? `${formatPace(stats.bestPace.pace)} /km`
+                  : '-'}
+              </Text>
+              <Text style={[styles.recordDate, { color: colors.neutral[400] }]}>
+                {stats.bestPace
+                  ? format(new Date(stats.bestPace.date), 'dd/MM/yyyy')
+                  : ''}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    </>
+  );
+
+  // Rendu principal
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
@@ -340,7 +454,7 @@ export default function RunningStatisticsScreen() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
-        {/* En-tête */}
+        {/* En-tête avec période */}
         <View style={styles.header}>
           <View style={styles.titleContainer}>
             <BarChart2 size={28} color={colors.secondary[500]} />
@@ -377,292 +491,175 @@ export default function RunningStatisticsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Onglets de navigation pour les différentes analyses */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'overview' && {
+                backgroundColor: colors.secondary[100],
+                borderBottomColor: colors.secondary[500],
+                borderBottomWidth: 2,
+              },
+            ]}
+            onPress={() => setActiveTab('overview')}
+          >
+            <BarChart2
+              size={16}
+              color={
+                activeTab === 'overview'
+                  ? colors.secondary[600]
+                  : colors.neutral[500]
+              }
+            />
+            <Text
+              style={[
+                styles.tabText,
+                {
+                  color:
+                    activeTab === 'overview'
+                      ? colors.secondary[600]
+                      : colors.neutral[500],
+                },
+              ]}
+            >
+              Résumé
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'heart' && {
+                backgroundColor: colors.secondary[100],
+                borderBottomColor: colors.secondary[500],
+                borderBottomWidth: 2,
+              },
+            ]}
+            onPress={() => setActiveTab('heart')}
+          >
+            <Heart
+              size={16}
+              color={
+                activeTab === 'heart'
+                  ? colors.secondary[600]
+                  : colors.neutral[500]
+              }
+            />
+            <Text
+              style={[
+                styles.tabText,
+                {
+                  color:
+                    activeTab === 'heart'
+                      ? colors.secondary[600]
+                      : colors.neutral[500],
+                },
+              ]}
+            >
+              Cardio
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'season' && {
+                backgroundColor: colors.secondary[100],
+                borderBottomColor: colors.secondary[500],
+                borderBottomWidth: 2,
+              },
+            ]}
+            onPress={() => setActiveTab('season')}
+          >
+            <Calendar
+              size={16}
+              color={
+                activeTab === 'season'
+                  ? colors.secondary[600]
+                  : colors.neutral[500]
+              }
+            />
+            <Text
+              style={[
+                styles.tabText,
+                {
+                  color:
+                    activeTab === 'season'
+                      ? colors.secondary[600]
+                      : colors.neutral[500],
+                },
+              ]}
+            >
+              Saisons
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'compare' && {
+                backgroundColor: colors.secondary[100],
+                borderBottomColor: colors.secondary[500],
+                borderBottomWidth: 2,
+              },
+            ]}
+            onPress={() => setActiveTab('compare')}
+          >
+            <TrendingUp
+              size={16}
+              color={
+                activeTab === 'compare'
+                  ? colors.secondary[600]
+                  : colors.neutral[500]
+              }
+            />
+            <Text
+              style={[
+                styles.tabText,
+                {
+                  color:
+                    activeTab === 'compare'
+                      ? colors.secondary[600]
+                      : colors.neutral[500],
+                },
+              ]}
+            >
+              Distances
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Cartes de statistiques */}
-          <View style={styles.statsCardGrid}>
-            <Animated.View
-              entering={FadeInDown.delay(50)}
-              style={styles.statsCard}
-            >
-              <View
-                style={[
-                  styles.statsCardContent,
-                  { backgroundColor: colors.cardBackground },
-                ]}
-              >
-                <View style={styles.statsCardHeader}>
-                  <Activity size={20} color={colors.secondary[500]} />
-                  <Text style={[styles.statsCardTitle, { color: colors.text }]}>
-                    Activité Totale
-                  </Text>
-                </View>
-                <View style={styles.statsCardBody}>
-                  <View style={styles.statsCardItem}>
-                    <Text
-                      style={[styles.statsCardValue, { color: colors.text }]}
-                    >
-                      {stats.totalSessions}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statsCardLabel,
-                        { color: colors.neutral[500] },
-                      ]}
-                    >
-                      Sessions
-                    </Text>
-                  </View>
-                  <View style={styles.statsCardItem}>
-                    <Text
-                      style={[styles.statsCardValue, { color: colors.text }]}
-                    >
-                      {stats.totalDistance.toFixed(1)} km
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statsCardLabel,
-                        { color: colors.neutral[500] },
-                      ]}
-                    >
-                      Distance
-                    </Text>
-                  </View>
-                  <View style={styles.statsCardItem}>
-                    <Text
-                      style={[styles.statsCardValue, { color: colors.text }]}
-                    >
-                      {Math.floor(stats.totalDuration / 60)}h{' '}
-                      {Math.round(stats.totalDuration % 60)}min
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statsCardLabel,
-                        { color: colors.neutral[500] },
-                      ]}
-                    >
-                      Durée
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
+          {activeTab === 'overview' && renderOverviewTab()}
 
-            <Animated.View
-              entering={FadeInDown.delay(100)}
-              style={styles.statsCard}
-            >
-              <View
-                style={[
-                  styles.statsCardContent,
-                  { backgroundColor: colors.cardBackground },
-                ]}
-              >
-                <View style={styles.statsCardHeader}>
-                  <TrendingUp size={20} color={colors.primary[500]} />
-                  <Text style={[styles.statsCardTitle, { color: colors.text }]}>
-                    Moyennes
-                  </Text>
-                </View>
-                <View style={styles.statsCardBody}>
-                  <View style={styles.statsCardItem}>
-                    <Text
-                      style={[styles.statsCardValue, { color: colors.text }]}
-                    >
-                      {stats.avgDistance.toFixed(1)} km
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statsCardLabel,
-                        { color: colors.neutral[500] },
-                      ]}
-                    >
-                      Distance
-                    </Text>
-                  </View>
-                  <View style={styles.statsCardItem}>
-                    <Text
-                      style={[styles.statsCardValue, { color: colors.text }]}
-                    >
-                      {Math.round(stats.avgDuration)} min
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statsCardLabel,
-                        { color: colors.neutral[500] },
-                      ]}
-                    >
-                      Durée
-                    </Text>
-                  </View>
-                  <View style={styles.statsCardItem}>
-                    <Text
-                      style={[styles.statsCardValue, { color: colors.text }]}
-                    >
-                      {/* Utiliser la fonction formatPace pour afficher l'allure en min:sec */}
-                      {formatPace(stats.avgPace)} /km
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statsCardLabel,
-                        { color: colors.neutral[500] },
-                      ]}
-                    >
-                      Allure
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          </View>
-
-          {/* Records et performances */}
-          <Animated.View entering={FadeInDown.delay(150)}>
-            <View
-              style={[
-                styles.recordsCard,
-                { backgroundColor: colors.cardBackground },
-              ]}
-            >
-              <View style={styles.sectionHeader}>
-                <Award size={20} color={colors.success[500]} />
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Meilleures performances
-                </Text>
-              </View>
-
-              <View style={styles.recordsGrid}>
-                <View style={styles.recordItem}>
-                  <Text
-                    style={[styles.recordLabel, { color: colors.neutral[500] }]}
-                  >
-                    Course la plus longue
-                  </Text>
-                  <Text style={[styles.recordValue, { color: colors.text }]}>
-                    {stats.longestRun
-                      ? `${stats.longestRun.distance?.toFixed(1)} km`
-                      : '-'}
-                  </Text>
-                  <Text
-                    style={[styles.recordDate, { color: colors.neutral[400] }]}
-                  >
-                    {stats.longestRun
-                      ? format(new Date(stats.longestRun.date), 'dd/MM/yyyy')
-                      : ''}
-                  </Text>
-                </View>
-
-                <View style={styles.recordItem}>
-                  <Text
-                    style={[styles.recordLabel, { color: colors.neutral[500] }]}
-                  >
-                    Meilleure allure
-                  </Text>
-                  <Text style={[styles.recordValue, { color: colors.text }]}>
-                    {/* Utiliser la fonction formatPace pour afficher l'allure en min:sec */}
-                    {stats.bestPace
-                      ? `${formatPace(stats.bestPace.pace)} /km`
-                      : '-'}
-                  </Text>
-                  <Text
-                    style={[styles.recordDate, { color: colors.neutral[400] }]}
-                  >
-                    {stats.bestPace
-                      ? format(new Date(stats.bestPace.date), 'dd/MM/yyyy')
-                      : ''}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
-
-          {/* Graphique de répartition des sensations */}
-          {feelingChartData.length > 0 && (
-            <Animated.View entering={FadeInDown.delay(200)}>
-              <View
-                style={[
-                  styles.chartCard,
-                  { backgroundColor: colors.cardBackground },
-                ]}
-              >
-                <Text style={[styles.chartTitle, { color: colors.text }]}>
-                  Répartition des sensations
-                </Text>
-                <View style={styles.pieChartContainer}>
-                  <PieChart
-                    data={feelingChartData}
-                    width={width - 64}
-                    height={200}
-                    chartConfig={distanceChartConfig}
-                    accessor="count"
-                    backgroundColor="transparent"
-                    paddingLeft="0"
-                    absolute={false}
-                  />
-                </View>
-              </View>
-            </Animated.View>
+          {activeTab === 'heart' && (
+            <HeartRateChart
+              sessions={filteredSessions}
+              colors={colors}
+              period={period === 'all' ? 'all' : 'recent'}
+            />
           )}
 
-          {/* Graphique de distance par semaine */}
-          {stats.distanceByWeek.length > 1 && (
-            <Animated.View entering={FadeInDown.delay(250)}>
-              <View
-                style={[
-                  styles.chartCard,
-                  { backgroundColor: colors.cardBackground },
-                ]}
-              >
-                <Text style={[styles.chartTitle, { color: colors.text }]}>
-                  Distance par semaine
-                </Text>
-                <BarChart
-                  data={distanceChartData}
-                  width={width - 40}
-                  height={220}
-                  chartConfig={distanceChartConfig}
-                  verticalLabelRotation={0}
-                  fromZero={true}
-                  showBarTops={false}
-                  yAxisLabel=""
-                  yAxisSuffix=" km"
-                  style={styles.barChart}
-                />
-              </View>
-            </Animated.View>
+          {activeTab === 'season' && (
+            <SeasonalPerformanceChart
+              sessions={sessions}
+              colors={colors}
+              timeFrame={
+                period === 'all' || period === '90d' ? 'year' : 'semester'
+              }
+            />
           )}
 
-          {/* Graphique d'évolution d'allure */}
-          {stats.paceProgression.length > 1 && (
-            <Animated.View entering={FadeInDown.delay(300)}>
-              <View
-                style={[
-                  styles.chartCard,
-                  { backgroundColor: colors.cardBackground },
-                ]}
-              >
-                <Text style={[styles.chartTitle, { color: colors.text }]}>
-                  Évolution de l'allure
-                </Text>
-                <LineChart
-                  data={paceChartData}
-                  width={width - 40}
-                  height={220}
-                  chartConfig={paceChartConfig} // Utiliser la configuration avec formatage
-                  bezier
-                  style={styles.lineChart}
-                />
-                <Text
-                  style={[styles.chartNote, { color: colors.neutral[500] }]}
-                >
-                  Note: une allure plus basse est meilleure (moins de minutes
-                  par km)
-                </Text>
-              </View>
-            </Animated.View>
+          {activeTab === 'compare' && (
+            <PerformanceComparisonChart
+              sessions={period === 'all' ? sessions : filteredSessions}
+              colors={colors}
+            />
           )}
 
           {/* Message si pas assez de données */}
@@ -743,6 +740,28 @@ const styles = StyleSheet.create({
   periodText: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    marginTop: 8,
+    justifyContent: 'space-between',
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 4,
   },
   scrollView: {
     flex: 1,
@@ -841,46 +860,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     marginTop: 2,
   },
-  chartCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-    alignItems: 'center',
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: 16,
-    alignSelf: 'flex-start',
-  },
-  pieChartContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  barChart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  lineChart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  chartNote: {
-    fontSize: 12,
-    fontFamily: 'Inter-Italic',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
   emptyCard: {
     borderRadius: 16,
     padding: 24,
-    marginBottom: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
