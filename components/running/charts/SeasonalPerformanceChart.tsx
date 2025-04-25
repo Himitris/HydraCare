@@ -50,6 +50,10 @@ const SeasonalPerformanceChart = ({
 
   // Calculate month ranges for chart
   const monthRanges = useMemo(() => {
+    if (!sessions || sessions.length === 0) {
+      return [];
+    }
+
     const today = new Date();
     const ranges = [];
 
@@ -69,22 +73,29 @@ const SeasonalPerformanceChart = ({
     }
 
     return ranges;
-  }, [monthsRange]);
+  }, [monthsRange, sessions]);
+
 
   // Calculate chart data
   const chartData = useMemo(() => {
-    // Initialize data arrays
+    if (!sessions || sessions.length === 0) {
+      return {
+        labels: [],
+        distance: [],
+        duration: [],
+        pace: [],
+        sessionCounts: [],
+      };
+    }
+
     const labels = monthRanges.map((m) => m.monthName);
     const distanceData = new Array(monthRanges.length).fill(0);
     const durationData = new Array(monthRanges.length).fill(0);
     const paceData = new Array(monthRanges.length).fill(0);
     const sessionCounts = new Array(monthRanges.length).fill(0);
 
-    // Process sessions data
     sessions.forEach((session) => {
       const sessionDate = new Date(session.date);
-
-      // Find matching month index
       const monthIndex = monthRanges.findIndex((range) =>
         isWithinInterval(sessionDate, {
           start: range.startDate,
@@ -93,7 +104,6 @@ const SeasonalPerformanceChart = ({
       );
 
       if (monthIndex !== -1) {
-        // Accumulate data for each metric
         if (session.distance) {
           distanceData[monthIndex] += session.distance;
           sessionCounts[monthIndex]++;
@@ -105,17 +115,14 @@ const SeasonalPerformanceChart = ({
       }
     });
 
-    // Calculate average pace for each month
     for (let i = 0; i < monthRanges.length; i++) {
       if (distanceData[i] > 0 && durationData[i] > 0) {
         paceData[i] = durationData[i] / distanceData[i];
       }
     }
 
-    // For pace, filter out zero values for better visualization
     const filteredPaceData = paceData.map((p) => (p === 0 ? null : p));
 
-    // Format data for chart
     return {
       labels,
       distance: distanceData,
@@ -124,6 +131,7 @@ const SeasonalPerformanceChart = ({
       sessionCounts,
     };
   }, [sessions, monthRanges]);
+
 
   // Calculate insights
   const insights = useMemo(() => {

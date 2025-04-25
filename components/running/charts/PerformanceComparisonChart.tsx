@@ -3,17 +3,17 @@ import { formatDuration, formatPace } from '@/utils/formatters';
 import { ArrowDownUp, Award, Gauge, Ruler } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -43,6 +43,10 @@ const PerformanceComparisonChart = ({
 
   // Group sessions by distance ranges and calculate metrics
   const distanceStats = useMemo(() => {
+    if (!sessions || sessions.length === 0) {
+      return [];
+    }
+
     const stats = DISTANCE_RANGES.map((range) => ({
       ...range,
       sessions: [] as any[],
@@ -53,16 +57,12 @@ const PerformanceComparisonChart = ({
       count: 0,
     }));
 
-    // Filter sessions with required data
     const validSessions = sessions.filter(
       (session) => session.distance && session.duration && session.pace
     );
 
-    // Categorize sessions into distance ranges
     validSessions.forEach((session) => {
       const distance = session.distance;
-
-      // Find appropriate range
       const rangeIndex = DISTANCE_RANGES.findIndex(
         (range) => distance >= range.min && distance < range.max
       );
@@ -74,16 +74,12 @@ const PerformanceComparisonChart = ({
       }
     });
 
-    // Calculate metrics for each range
     stats.forEach((range) => {
       if (range.count > 0) {
-        // Calculate average pace and duration
         range.avgPace =
           range.sessions.reduce((sum, s) => sum + s.pace, 0) / range.count;
         range.avgDuration =
           range.sessions.reduce((sum, s) => sum + s.duration, 0) / range.count;
-
-        // Find best pace
         range.bestPace = Math.min(...range.sessions.map((s) => s.pace));
       }
     });
@@ -150,13 +146,14 @@ const PerformanceComparisonChart = ({
 
   // Get best performances
   const bestPerformances = useMemo(() => {
-    const result: any[] = [];
+    if (!sessions || sessions.length === 0) {
+      return [];
+    }
 
-    // Find best performances for different distances
-    const keyDistances = [5, 10, 21.1]; // 5K, 10K, half-marathon
+    const result: any[] = [];
+    const keyDistances = [5, 10, 21.1];
 
     keyDistances.forEach((targetDistance) => {
-      // Filter sessions close to the target distance (±5%)
       const targetSessions = sessions.filter(
         (s) =>
           s.distance &&
@@ -166,7 +163,6 @@ const PerformanceComparisonChart = ({
       );
 
       if (targetSessions.length > 0) {
-        // Find session with best pace
         const bestSession = targetSessions.reduce(
           (best, current) => (current.pace < best.pace ? current : best),
           targetSessions[0]
@@ -187,6 +183,7 @@ const PerformanceComparisonChart = ({
 
     return result;
   }, [sessions]);
+
 
   if (rangesWithData.length === 0) {
     return (

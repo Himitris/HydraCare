@@ -38,28 +38,42 @@ const HeartRateChart = ({
     animationProgress.value = withTiming(1, { duration: 1000 });
   }, [sessions, selectedChart]);
 
-  // Filter sessions with heart rate data
   const sessionsWithHeartRate = sessions.filter(
     (session) =>
       (selectedChart === 'avg' && session.avgHeartRate !== undefined) ||
       (selectedChart === 'max' && session.maxHeartRate !== undefined)
   );
 
-  // Get recent or all sessions based on the period
+  if (sessionsWithHeartRate.length === 0) {
+    return (
+      <View
+        style={[
+          styles.emptyContainer,
+          { backgroundColor: colors.cardBackground },
+        ]}
+      >
+        <Heart size={40} color={colors.neutral[400]} />
+        <Text style={[styles.emptyText, { color: colors.text }]}>
+          Pas de données de fréquence cardiaque disponibles
+        </Text>
+        <Text style={[styles.emptySubtext, { color: colors.neutral[500] }]}>
+          Commencez à enregistrer vos FC pour voir des statistiques ici
+        </Text>
+      </View>
+    );
+  }
+
   const filteredSessions =
     period === 'recent'
-      ? sessionsWithHeartRate.slice(0, 10) // Get last 10 sessions
+      ? sessionsWithHeartRate.slice(0, 10)
       : sessionsWithHeartRate;
 
-  // Sort sessions by date (oldest first for charts)
   const sortedSessions = [...filteredSessions].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
-  // Prepare data for chart
   const chartData = {
     labels: sortedSessions.map((session, index) => {
-      // Use short format for labels, show every other label for readability if many sessions
       const date = new Date(session.date);
       return index % Math.max(1, Math.floor(sortedSessions.length / 5)) === 0
         ? `${date.getDate()}/${date.getMonth() + 1}`
@@ -78,6 +92,7 @@ const HeartRateChart = ({
     legend: [selectedChart === 'avg' ? 'FC Moyenne (bpm)' : 'FC Max (bpm)'],
   };
 
+
   // Calculate min/max and trends for heart rate
   const heartRateData = sortedSessions.map((session) =>
     selectedChart === 'avg' ? session.avgHeartRate : session.maxHeartRate
@@ -95,18 +110,21 @@ const HeartRateChart = ({
   // Calculate trend (is heart rate going up or down over time)
   let trend = 0;
   if (heartRateData.length >= 3) {
-    // Simple linear regression to determine trend
-    const x = Array.from({ length: heartRateData.length }, (_, i) => i);
-    const y = heartRateData;
+    try {
+      const x = Array.from({ length: heartRateData.length }, (_, i) => i);
+      const y = heartRateData;
 
-    const n = x.length;
-    const sumX = x.reduce((a, b) => a + b, 0);
-    const sumY = y.reduce((a, b) => a + b, 0);
-    const sumXY = x.reduce((total, xi, i) => total + xi * y[i], 0);
-    const sumX2 = x.reduce((total, xi) => total + xi * xi, 0);
+      const n = x.length;
+      const sumX = x.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const sumXY = x.reduce((total, xi, i) => total + xi * y[i], 0);
+      const sumX2 = x.reduce((total, xi) => total + xi * xi, 0);
 
-    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    trend = slope;
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      trend = slope;
+    } catch (error) {
+      console.error('Error calculating trend:', error);
+    }
   }
 
   // Chart configuration
