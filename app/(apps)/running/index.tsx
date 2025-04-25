@@ -41,6 +41,7 @@ import TimePickerModal from '@/components/running/modals/TimePickerModal';
 // Import des composants extraits
 import EmptyState from '@/components/running/EmptyState';
 import SessionCard from '@/components/running/SessionCard';
+import { formatDistance, formatDuration, formatPace } from '@/utils/formatters';
 
 const { width, height } = Dimensions.get('window');
 const STORAGE_KEY = '@hydracare/running_sessions';
@@ -220,6 +221,7 @@ export default function RunningScreen() {
       newSession.duration &&
       newSession.distance > 0
     ) {
+      // Stocke l'allure en minutes décimales (5.75 pour 5:45)
       pace = newSession.duration / newSession.distance;
     }
 
@@ -307,7 +309,7 @@ export default function RunningScreen() {
   const calculatePace = (): string => {
     if (newSession.distance && newSession.duration && newSession.distance > 0) {
       const pace = newSession.duration / newSession.distance;
-      return pace.toFixed(2).replace('.', ','); // Remplace le point par une virgule pour le format français
+      return formatPace(pace);
     }
     return '';
   };
@@ -825,14 +827,16 @@ export default function RunningScreen() {
                             styles.compactInput,
                             {
                               backgroundColor: colors.background,
-                              borderColor: colors.neutral[200],
+                              borderColor: colors.neutral[300],
                               color: colors.text,
                               opacity: 0.7,
                             },
                           ]}
                           placeholder="Auto"
-                          placeholderTextColor={colors.neutral[500]}
-                          value={calculatePace()}
+                          placeholderTextColor={colors.neutral[400]}
+                          value={
+                            calculatePace() ? `${calculatePace()} /km` : ''
+                          }
                           editable={false}
                         />
                       </View>
@@ -1022,10 +1026,7 @@ export default function RunningScreen() {
                                 { color: colors.text },
                               ]}
                             >
-                              {selectedSession.distance
-                                .toString()
-                                .replace('.', ',')}{' '}
-                              km
+                              {formatDistance(selectedSession.distance)}
                             </Text>
                           </View>
                         )}
@@ -1047,15 +1048,7 @@ export default function RunningScreen() {
                                 { color: colors.text },
                               ]}
                             >
-                              {(() => {
-                                const { hours, minutes, seconds } =
-                                  minutesToTime(selectedSession.duration);
-                                return `${
-                                  hours > 0 ? `${hours}h ` : ''
-                                }${minutes}m ${
-                                  seconds > 0 ? `${seconds}s` : ''
-                                }`;
-                              })()}
+                              {formatDuration(selectedSession.duration)}
                             </Text>
                           </View>
                         )}
@@ -1080,19 +1073,15 @@ export default function RunningScreen() {
                               ]}
                             >
                               {selectedSession.pace
-                                ? selectedSession.pace
-                                    .toFixed(2)
-                                    .replace('.', ',')
+                                ? formatPace(selectedSession.pace)
                                 : selectedSession.duration &&
                                   selectedSession.distance
-                                ? (
+                                ? formatPace(
                                     selectedSession.duration /
-                                    selectedSession.distance
+                                      selectedSession.distance
                                   )
-                                    .toFixed(2)
-                                    .replace('.', ',')
-                                : ''}{' '}
-                              min/km
+                                : '-'}{' '}
+                              /km
                             </Text>
                           </View>
                         )}

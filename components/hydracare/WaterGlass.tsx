@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -9,8 +9,6 @@ import Animated, {
   Easing,
   interpolate,
   withSpring,
-  useAnimatedSensor,
-  SensorType,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppContext } from '@/context/AppContext';
@@ -20,7 +18,8 @@ import Svg, {
   Defs,
   RadialGradient,
   Stop,
-  Circle,
+  ClipPath,
+  Rect,
 } from 'react-native-svg';
 
 interface WaterGlassProps {
@@ -28,18 +27,17 @@ interface WaterGlassProps {
 }
 
 const { width, height } = Dimensions.get('window');
-// Defining constants outside of component (not using hooks here)
 const GLASS_HEIGHT = height * 0.28;
 const GLASS_WIDTH = width * 0.5;
+const GLASS_BORDER_RADIUS = 40; // Radius for bottom corners
 
 export default function WaterGlass({ progress }: WaterGlassProps) {
   const { isDarkMode } = useAppContext();
-  // Mémorise le thème de couleurs pour éviter des recalculs inutiles quand isDarkMode change
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
   // Animation values
   const waterLevel = useSharedValue(0);
-  const waveOffset = useSharedValue(0);
+  const waveOffset1 = useSharedValue(0);
   const waveOffset2 = useSharedValue(0);
   const shimmer = useSharedValue(0);
   const bubbleY1 = useSharedValue(0);
@@ -47,18 +45,16 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
   const bubbleY3 = useSharedValue(0);
   const splashEffect = useSharedValue(0);
 
-  // Gyroscope sensor for fluid dynamics
-  const gyroscope = useAnimatedSensor(SensorType.GYROSCOPE, { interval: 100 });
-
   // Handle water level changes with splash effect
   useEffect(() => {
     const previousLevel = waterLevel.value;
 
-    // Animate water level
+    // Animate water level with better spring configuration
     waterLevel.value = withSpring(progress, {
       damping: 12,
-      stiffness: 100,
-      mass: 0.5,
+      stiffness: 90,
+      mass: 0.8,
+      overshootClamping: false,
     });
 
     // Trigger splash if water level changed significantly
@@ -70,50 +66,62 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
     }
   }, [progress]);
 
-  // Gentle wave animations - séparées dans un effet pour mieux isoler les dépendances
+  // Wave animations
   useEffect(() => {
-    waveOffset.value = withRepeat(
-      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+    // Smooth wave animations with different durations and phases
+    waveOffset1.value = withRepeat(
+      withTiming(1, {
+        duration: 3000,
+        easing: Easing.inOut(Easing.sin),
+      }),
       -1,
       true
     );
 
     waveOffset2.value = withRepeat(
-      withTiming(1, { duration: 3500, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1, {
+        duration: 4200,
+        easing: Easing.inOut(Easing.sin),
+      }),
       -1,
       true
     );
 
     shimmer.value = withRepeat(
-      withTiming(1, { duration: 4000, easing: Easing.ease }),
+      withTiming(1, {
+        duration: 4000,
+        easing: Easing.inOut(Easing.cubic),
+      }),
       -1,
       true
     );
   }, []);
 
-  // Bubble animations dans un effet séparé
+  // Bubble animations
   useEffect(() => {
-    // Factorisation de la fonction d'animation pour éviter la duplication
     const animateBubble = (
       bubbleValue: Animated.SharedValue<number>,
       delay: number,
       duration: number
     ) => {
-      bubbleValue.value = withRepeat(
-        withSequence(
-          withTiming(0, { duration: 0 }),
-          withTiming(1, {
-            duration: duration,
-            easing: Easing.linear,
-          })
-        ),
-        -1
-      );
+      setTimeout(() => {
+        bubbleValue.value = withRepeat(
+          withSequence(
+            withTiming(0, { duration: 0 }),
+            withTiming(1, {
+              duration: duration,
+              easing: Easing.bezier(0.22, 1, 0.36, 1),
+            })
+          ),
+          -1,
+          false
+        );
+      }, delay);
     };
 
     animateBubble(bubbleY1, 0, 2500);
-    animateBubble(bubbleY2, 900, 2800);
-    animateBubble(bubbleY3, 1800, 3200);
+    animateBubble(bubbleY2, 900, 3100);
+    animateBubble(bubbleY3, 1800, 2800);
   }, []);
 
   // Animated styles for water
@@ -121,63 +129,55 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
     height: `${waterLevel.value * 100}%`,
   }));
 
-  // Gyroscope-based water tilt animation
-  const waterTiltStyle = useAnimatedStyle(() => {
-    const tiltX = interpolate(gyroscope.sensor.value.y, [-0.5, 0.5], [-10, 10]);
-    const tiltY = interpolate(gyroscope.sensor.value.x, [-0.5, 0.5], [5, -5]);
-
-    return {
-      transform: [
-        { translateX: withSpring(tiltX, { damping: 20, stiffness: 90 }) },
-        { rotateZ: `${tiltY}deg` },
-      ],
-    };
-  });
-
-  // Wave animation styles
-  const waveStyle = useAnimatedStyle(() => ({
+  // Improved wave animations
+  const waveStyle1 = useAnimatedStyle(() => ({
     transform: [
       {
-        translateY: interpolate(waveOffset.value, [0, 1], [0, -8]),
+        translateY: interpolate(waveOffset1.value, [0, 1], [-2, -6]),
       },
       {
-        translateX: interpolate(waveOffset.value, [0, 1], [-10, 10]),
+        translateX: interpolate(waveOffset1.value, [0, 1], [-8, 8]),
       },
       {
-        skewX: `${interpolate(waveOffset.value, [0, 0.5, 1], [0, 10, 0])}deg`,
+        skewX: `${interpolate(waveOffset1.value, [0, 0.5, 1], [0, 6, 0])}deg`,
       },
     ],
+    opacity: interpolate(waveOffset1.value, [0, 0.5, 1], [0.7, 1, 0.7]),
   }));
 
   const waveStyle2 = useAnimatedStyle(() => ({
     transform: [
       {
-        translateY: interpolate(waveOffset2.value, [0, 1], [0, -6]),
+        translateY: interpolate(waveOffset2.value, [0, 1], [-4, -8]),
       },
       {
-        translateX: interpolate(waveOffset2.value, [0, 1], [10, -10]),
+        translateX: interpolate(waveOffset2.value, [0, 1], [6, -6]),
       },
       {
-        skewX: `${interpolate(waveOffset2.value, [0, 0.5, 1], [0, -8, 0])}deg`,
+        skewX: `${interpolate(waveOffset2.value, [0, 0.5, 1], [0, -5, 0])}deg`,
       },
     ],
+    opacity: interpolate(waveOffset2.value, [0, 0.5, 1], [0.8, 0.6, 0.8]),
   }));
 
   const shimmerStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(shimmer.value, [0, 0.5, 1], [0.3, 0.6, 0.3]),
+    opacity: interpolate(shimmer.value, [0, 0.5, 1], [0.2, 0.5, 0.2]),
     transform: [
       {
-        translateX: interpolate(shimmer.value, [0, 1], [-20, 20]),
+        translateX: interpolate(shimmer.value, [0, 1], [-15, 15]),
+      },
+      {
+        rotate: `${interpolate(shimmer.value, [0, 1], [-5, 5])}deg`,
       },
     ],
   }));
 
   const splashStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(splashEffect.value, [0, 1], [1, 1.3]) }],
-    opacity: interpolate(splashEffect.value, [0, 1], [0, 0.4]),
+    transform: [{ scale: interpolate(splashEffect.value, [0, 1], [1, 1.2]) }],
+    opacity: interpolate(splashEffect.value, [0, 0.3, 1], [0, 0.4, 0]),
   }));
 
-  // Factorisation de la création du style des bulles
+  // Improved bubble animations
   const createBubbleStyle = (
     bubbleValue: Animated.SharedValue<number>,
     offsetX: number
@@ -194,13 +194,19 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
         {
           translateX: interpolate(
             bubbleValue.value,
-            [0, 0.5, 1],
-            [0, offsetX, 0]
+            [0, 0.3, 0.7, 1],
+            [0, offsetX * 0.7, offsetX * 0.3, 0]
           ),
         },
-        { scale: interpolate(bubbleValue.value, [0, 0.5, 1], [0.3, 1, 0.3]) },
+        {
+          scale: interpolate(
+            bubbleValue.value,
+            [0, 0.2, 0.8, 1],
+            [0.3, 0.8, 0.8, 0.3]
+          ),
+        },
       ],
-      opacity: interpolate(bubbleValue.value, [0, 0.1, 0.9, 1], [0, 1, 1, 0]),
+      opacity: interpolate(bubbleValue.value, [0, 0.1, 0.8, 1], [0, 1, 1, 0]),
     }));
   };
 
@@ -221,7 +227,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
         ]}
       />
 
-      {/* Organic glass shape */}
+      {/* Glass shape with better masking for tilting */}
       <Svg width={GLASS_WIDTH} height={GLASS_HEIGHT} viewBox="0 0 200 260">
         <Defs>
           <RadialGradient id="glassGradient" cx="50%" cy="30%" r="70%">
@@ -236,6 +242,11 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
               stopOpacity="0.15"
             />
           </RadialGradient>
+
+          {/* Clip path for water to stay inside glass */}
+          <ClipPath id="glassClip">
+            <Path d="M30 50 Q 20 80, 20 180 Q 20 240, 100 240 Q 180 240, 180 180 Q 180 80, 170 50 Q 160 40, 100 35 Q 40 40, 30 50 Z" />
+          </ClipPath>
         </Defs>
 
         {/* Glass body with rounded bottom */}
@@ -257,10 +268,19 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
         />
       </Svg>
 
-      {/* Water container with mask */}
+      {/* Water container with improved clipping */}
       <View style={styles.waterContainer}>
         <Animated.View style={[styles.waterMask, waterStyle]}>
-          <Animated.View style={[StyleSheet.absoluteFill, waterTiltStyle]}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                overflow: 'hidden',
+                borderBottomLeftRadius: GLASS_BORDER_RADIUS,
+                borderBottomRightRadius: GLASS_BORDER_RADIUS,
+              },
+            ]}
+          >
             <LinearGradient
               colors={[
                 colors.primary[300],
@@ -273,10 +293,10 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
               {/* Splash effect */}
               <Animated.View style={[styles.splash, splashStyle]} />
 
-              {/* Dynamic waves */}
-              <Animated.View style={[styles.wave, waveStyle]}>
+              {/* Improved waves */}
+              <Animated.View style={[styles.wave1, waveStyle1]}>
                 <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.4)', 'transparent']}
+                  colors={['rgba(255, 255, 255, 0.6)', 'transparent']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.waveGradient}
@@ -285,7 +305,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
 
               <Animated.View style={[styles.wave2, waveStyle2]}>
                 <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.3)', 'transparent']}
+                  colors={['rgba(255, 255, 255, 0.4)', 'transparent']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.waveGradient}
@@ -303,7 +323,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
                 style={[styles.bubble, { left: '80%' }, bubble3Style]}
               />
 
-              {/* Dynamic shimmer */}
+              {/* Improved shimmer */}
               <Animated.View style={[styles.shimmer, shimmerStyle]} />
             </LinearGradient>
           </Animated.View>
@@ -313,7 +333,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
       {/* Enhanced reflection */}
       <View style={styles.reflectionContainer}>
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.2)', 'transparent']}
+          colors={['rgba(255, 255, 255, 0.25)', 'transparent']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0.7, y: 1 }}
           style={styles.reflection}
@@ -348,20 +368,22 @@ const styles = StyleSheet.create({
     right: 30,
     height: GLASS_HEIGHT - 70,
     overflow: 'hidden',
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+    borderBottomLeftRadius: GLASS_BORDER_RADIUS,
+    borderBottomRightRadius: GLASS_BORDER_RADIUS,
   },
   waterMask: {
     position: 'absolute',
     bottom: 0,
     width: '100%',
     overflow: 'hidden',
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+    borderBottomLeftRadius: GLASS_BORDER_RADIUS,
+    borderBottomRightRadius: GLASS_BORDER_RADIUS,
   },
   water: {
     width: '100%',
     height: '100%',
+    borderBottomLeftRadius: GLASS_BORDER_RADIUS,
+    borderBottomRightRadius: GLASS_BORDER_RADIUS,
   },
   splash: {
     position: 'absolute',
@@ -372,12 +394,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     borderRadius: 30,
   },
-  wave: {
+  wave1: {
     position: 'absolute',
     top: -12,
     left: -20,
     right: -20,
     height: 30,
+    borderRadius: 15,
   },
   wave2: {
     position: 'absolute',
@@ -385,6 +408,7 @@ const styles = StyleSheet.create({
     left: -20,
     right: -20,
     height: 20,
+    borderRadius: 15,
   },
   waveGradient: {
     width: '100%',
@@ -397,14 +421,14 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    bottom: 0,
+    bottom: 10,
   },
   shimmer: {
     position: 'absolute',
-    top: 10,
+    top: 15,
     left: '10%',
     width: '80%',
-    height: 100,
+    height: 80,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 50,
     transform: [{ rotate: '15deg' }],

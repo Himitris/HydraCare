@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Configuration des notifications pour Expo Go
+// Configuration des notifications pour Expo
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -12,68 +12,16 @@ Notifications.setNotificationHandler({
   }),
 });
 
-interface NotificationSchedule {
-  timeSlot: string;
-  waterRemaining: number;
-  message: string;
-  icon: string;
-}
-
-interface ScheduledNotification {
-  identifier: string;
-  date: Date;
-}
-
 export class NotificationService {
-  // Clé pour stocker les notifications déjà planifiées
+  // Clé pour stocker les notifications planifiées
   private static SCHEDULED_NOTIFICATIONS_KEY =
     '@hydracare/scheduled_notifications';
   private static LAST_NOTIFICATION_CHECK_KEY =
     '@hydracare/last_notification_check';
 
-  // Configuration des créneaux intelligents de notification
-  static notificationSchedules: NotificationSchedule[] = [
-    {
-      timeSlot: '09:00',
-      waterRemaining: 2000,
-      message:
-        "🌅 Bonjour ! N'oubliez pas de commencer votre journée en vous hydratant 💧",
-      icon: '🌅',
-    },
-    {
-      timeSlot: '12:30',
-      waterRemaining: 1500,
-      message:
-        "🍽️ L'heure du déjeuner ! C'est le moment parfait pour boire de l'eau 💦",
-      icon: '🍽️',
-    },
-    {
-      timeSlot: '15:00',
-      waterRemaining: 1000,
-      message: "☀️ Pause hydratation ! Il vous reste 1L à boire aujourd'hui 🥤",
-      icon: '☀️',
-    },
-    {
-      timeSlot: '17:00',
-      waterRemaining: 500,
-      message:
-        '🏆 Vous y êtes presque ! Plus que 2 verres pour atteindre votre objectif 🌟',
-      icon: '🏆',
-    },
-    {
-      timeSlot: '19:00',
-      waterRemaining: 250,
-      message: "🌙 Dernier effort ! Un petit verre d'eau avant la soirée ? 🥤",
-      icon: '🌙',
-    },
-    {
-      timeSlot: '20:00',
-      waterRemaining: 0,
-      message:
-        "🎉 Bravo ! Vous avez atteint votre objectif d'hydratation aujourd'hui ! 🏆",
-      icon: '🎉',
-    },
-  ];
+  // Configuration de l'heure de la notification (19h00 par défaut)
+  private static EVENING_REMINDER_HOUR = 19;
+  private static EVENING_REMINDER_MINUTE = 0;
 
   // Sauvegarde de la dernière vérification
   private static async saveLastCheck() {
@@ -166,116 +114,85 @@ export class NotificationService {
     });
   }
 
-  // Planifier les notifications intelligentes
-  // Planifier les notifications intelligentes
-  static async scheduleSmartNotifications(
+  // Planifier la notification du soir
+  static async scheduleEveningReminder(
     dailyGoal: number,
     currentIntake: number
   ) {
     try {
+      // Annuler les notifications existantes d'abord
+      await this.cancelAllScheduledNotificationsAsync();
+
       const remainingWater = dailyGoal - currentIntake;
+
+      // Ne pas planifier de notification si l'objectif est déjà atteint
+      if (remainingWater <= 0) {
+        console.log('Objectif déjà atteint, pas de notification planifiée');
+        return null;
+      }
+
       const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinutes = now.getMinutes();
-      const scheduledIdentifiers: string[] = [];
+      const notificationDate = new Date();
+      notificationDate.setHours(this.EVENING_REMINDER_HOUR);
+      notificationDate.setMinutes(this.EVENING_REMINDER_MINUTE);
+      notificationDate.setSeconds(0);
+      notificationDate.setMilliseconds(0);
 
-      // Ne pas planifier de notification si l'objectif est presque atteint (moins de 10%)
-      if (remainingWater < dailyGoal * 0.1) {
-        console.log(
-          'Objectif presque atteint, pas de notifications planifiées'
-        );
-        return scheduledIdentifiers;
+      // Si l'heure de la notification est déjà passée pour aujourd'hui, ne pas l'envoyer
+      if (notificationDate <= now) {
+        console.log("Heure de la notification déjà passée pour aujourd'hui");
+        return null;
       }
 
-      // Parcourir les créneaux de notification
-      for (const schedule of this.notificationSchedules) {
-        const [hour, minute] = schedule.timeSlot.split(':').map(Number);
-
-        // Ne planifier que les notifications futures
-        if (
-          hour > currentHour ||
-          (hour === currentHour && minute > currentMinutes)
-        ) {
-          // Ne pas planifier de notifications tard le soir (après 21h)
-          if (hour >= 21) {
-            continue;
-          }
-
-          const notificationDate = new Date();
-          notificationDate.setHours(hour);
-          notificationDate.setMinutes(minute);
-          notificationDate.setSeconds(0);
-          notificationDate.setMilliseconds(0);
-
-          // Vérifier si c'est une notification pertinente
-          if (remainingWater >= schedule.waterRemaining) {
-            let adaptedMessage = schedule.message;
-
-            if (remainingWater > 1500) {
-              adaptedMessage = `💧 Pensez à boire ! Il vous reste ${(
-                remainingWater / 1000
-              ).toFixed(1)}L à boire aujourd'hui 🥤`;
-            } else if (remainingWater > 750) {
-              adaptedMessage = `💪 Courage ! Plus que ${(
-                remainingWater / 1000
-              ).toFixed(1)}L pour atteindre votre objectif 🎯`;
-            } else if (remainingWater > 0) {
-              adaptedMessage = `✨ Vous y êtes presque ! Encore ${Math.round(
-                remainingWater / 250
-              )} verre(s) à boire 🥤`;
-            }
-
-            // Calculer le délai en secondes
-            const delaySeconds = Math.max(
-              1,
-              Math.floor((notificationDate.getTime() - now.getTime()) / 1000)
-            );
-
-            // Identifiant unique pour cette notification
-            const notificationId = `hydration-${hour}-${minute}-${new Date().toISOString()}`;
-
-            // Planifier la notification
-            const identifier = await Notifications.scheduleNotificationAsync({
-              content: {
-                title: 'HydraCare - Restez hydraté !',
-                body: adaptedMessage,
-                data: {
-                  type: 'hydration',
-                  remainingWater,
-                  notificationId,
-                },
-                sound: true,
-                priority: Notifications.AndroidNotificationPriority.HIGH,
-              },
-              trigger: {
-                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                seconds: delaySeconds,
-              },
-            });
-
-            // Sauvegarder l'identifiant pour pouvoir annuler plus tard si nécessaire
-            scheduledIdentifiers.push(identifier);
-            console.log(
-              `Notification planifiée pour ${hour}:${minute} - ID: ${identifier}`
-            );
-          }
-        }
+      // Message adapté en fonction de la quantité restante
+      let message = `💧 N'oubliez pas ! Il vous reste ${(
+        remainingWater / 1000
+      ).toFixed(1)}L à boire aujourd'hui.`;
+      if (remainingWater <= 500) {
+        message = `💧 Dernier effort ! Plus que ${Math.round(
+          remainingWater / 250
+        )} verre(s) pour atteindre votre objectif.`;
       }
 
-      // Enregistrer les notifications planifiées pour éviter les doublons
-      await AsyncStorage.setItem(
-        this.SCHEDULED_NOTIFICATIONS_KEY,
-        JSON.stringify(scheduledIdentifiers)
+      // Calculer le délai en secondes
+      const delaySeconds = Math.max(
+        1,
+        Math.floor((notificationDate.getTime() - now.getTime()) / 1000)
       );
 
-      return scheduledIdentifiers;
+      // Planifier la notification
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'HydraCare - Rappel du soir',
+          body: message,
+          data: { type: 'evening_reminder', remainingWater },
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: delaySeconds,
+        },
+      });
+
+      console.log(
+        `Notification du soir planifiée pour ${this.EVENING_REMINDER_HOUR}:${this.EVENING_REMINDER_MINUTE} - ID: ${identifier}`
+      );
+
+      // Sauvegarder l'identifiant
+      await AsyncStorage.setItem(
+        this.SCHEDULED_NOTIFICATIONS_KEY,
+        JSON.stringify([identifier])
+      );
+
+      return identifier;
     } catch (error) {
-      console.error('Error scheduling notifications:', error);
-      return [];
+      console.error('Error scheduling evening reminder:', error);
+      return null;
     }
   }
 
-  // Notification immédiate de félicitations
+  // Notification immédiate de félicitations (conservée pour compatibilité)
   static async sendCongratulationsNotification() {
     try {
       await Notifications.scheduleNotificationAsync({
@@ -303,7 +220,7 @@ export class NotificationService {
     }
   }
 
-  // Gestion intelligente des notifications
+  // Gestion simplifiée de la notification du soir
   static async updateNotificationSchedule(
     settings: { dailyGoal: number; remindersEnabled: boolean },
     currentIntake: number
@@ -318,40 +235,25 @@ export class NotificationService {
         return null;
       }
 
-      // Si l'objectif est atteint, envoyer une notification de félicitations et annuler les autres
+      // Si l'objectif est atteint, annuler les notifications
       if (currentIntake >= settings.dailyGoal) {
-        await this.sendCongratulationsNotification();
         await this.cancelAllScheduledNotificationsAsync();
-        console.log('Objectif atteint, notification de félicitations envoyée');
-        return ['congratulations_notification'];
+        console.log('Objectif atteint, notifications annulées');
+        return null;
       }
 
-      console.log('Planification de nouvelles notifications');
-
-      // Planifier des notifications intelligentes et récupérer leurs identifiants
-      const scheduledIds = await this.scheduleSmartNotifications(
+      // Planifier la notification du soir
+      return await this.scheduleEveningReminder(
         settings.dailyGoal,
         currentIntake
       );
-
-      // Vérifier si des notifications ont été planifiées
-      if (scheduledIds && scheduledIds.length > 0) {
-        console.log(
-          `${scheduledIds.length} notifications planifiées avec succès`
-        );
-        console.log('Notifications planifiées');
-        return scheduledIds;
-      } else {
-        console.log('Aucune notification planifiée');
-        return null;
-      }
     } catch (error) {
       console.error('Error updating notification schedule:', error);
       return null;
     }
   }
 
-  // Fonction pour vérifier et mettre à jour les notifications après chaque ajout d'eau
+  // Fonction pour vérifier et mettre à jour la notification
   static async checkAndUpdateNotifications(
     settings: { dailyGoal: number; remindersEnabled: boolean },
     currentIntake: number
@@ -361,13 +263,8 @@ export class NotificationService {
         return;
       }
 
-      // Ne mettre à jour que si c'est nécessaire
-      const remainingWater = settings.dailyGoal - currentIntake;
-      const currentHour = new Date().getHours();
-
-      // Si l'utilisateur boit régulièrement, réduire la fréquence des notifications
-      if (remainingWater < settings.dailyGoal * 0.25 && currentHour < 15) {
-        // L'utilisateur est en bonne voie, moins de notifications
+      // Si l'objectif est atteint, annuler les notifications
+      if (currentIntake >= settings.dailyGoal) {
         await this.cancelAllScheduledNotificationsAsync();
         return;
       }
@@ -379,8 +276,6 @@ export class NotificationService {
         const now = new Date();
         // Limiter à une mise à jour toutes les 30 minutes
         if (now.getTime() - lastCheckTime.getTime() < 1800000) {
-          // 30 minutes
-          console.log('Mise à jour des notifications ignorée - trop fréquente');
           return;
         }
       }
@@ -390,122 +285,50 @@ export class NotificationService {
         new Date().toISOString()
       );
 
-      // Éviter les appels multiples en parallèle
-      const isUpdating = await AsyncStorage.getItem(
-        'notification_update_in_progress'
-      );
-      if (isUpdating === 'true') {
-        console.log('Une mise à jour des notifications est déjà en cours');
-        return;
-      }
-
-      try {
-        // Marquer comme en cours de mise à jour
-        await AsyncStorage.setItem('notification_update_in_progress', 'true');
-
-        // Annuler les notifications existantes AVANT d'en planifier de nouvelles
-        await this.cancelAllScheduledNotificationsAsync();
-        console.log('Notifications précédentes annulées');
-
-        // Planifier de nouvelles notifications
-        await this.updateNotificationSchedule(settings, currentIntake);
-      } finally {
-        // Marquer comme terminé quelle que soit l'issue
-        await AsyncStorage.removeItem('notification_update_in_progress');
-      }
+      // Planifier la notification du soir
+      await this.updateNotificationSchedule(settings, currentIntake);
     } catch (error) {
       console.error('Error checking and updating notifications:', error);
-      // S'assurer que le verrou est libéré en cas d'erreur
-      await AsyncStorage.removeItem('notification_update_in_progress');
     }
   }
 
-  // Initialiser les notifications avec une logique intelligente
+  // Initialiser les notifications
   static async initialize(
     settings: { dailyGoal: number; remindersEnabled: boolean },
     currentIntake: number
   ) {
     try {
-      // S'assurer que l'initialisation ne se produit qu'une seule fois par session
-      const initializationInProgress = await AsyncStorage.getItem(
-        'notification_initialization_in_progress'
-      );
-      if (initializationInProgress === 'true') {
-        console.log('Initialisation des notifications déjà en cours');
+      // S'assurer que les permissions sont accordées
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission || !settings.remindersEnabled) {
+        console.log('Notifications désactivées ou permissions refusées');
         return null;
       }
 
-      // Marquer l'initialisation comme en cours
-      await AsyncStorage.setItem(
-        'notification_initialization_in_progress',
-        'true'
+      // Annuler toutes les notifications précédentes
+      await this.cancelAllScheduledNotificationsAsync();
+      console.log('Anciennes notifications annulées');
+
+      // Planifier la notification du soir
+      await this.saveLastCheck();
+      await this.updateNotificationSchedule(settings, currentIntake);
+
+      // Écouter les notifications reçues
+      const subscription = Notifications.addNotificationReceivedListener(
+        (notification) => {
+          console.log('Notification reçue:', notification);
+        }
       );
 
-      try {
-        // Vérifier si c'est un nouveau jour
-        const newDay = await this.isNewDay();
+      // Écouter les interactions avec les notifications
+      const interactionSubscription =
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          console.log('Interaction avec notification:', response);
+        });
 
-        // S'assurer que les permissions sont accordées
-        const hasPermission = await this.requestPermissions();
-        if (!hasPermission || !settings.remindersEnabled) {
-          console.log('Notifications désactivées ou permissions refusées');
-          return null;
-        }
-
-        // Annuler toutes les notifications précédentes pour éviter les doublons
-        await this.cancelAllScheduledNotificationsAsync();
-        console.log('Anciennes notifications annulées');
-
-        // Planifier de nouvelles notifications
-        await this.saveLastCheck();
-        const notificationIds = await this.updateNotificationSchedule(
-          settings,
-          currentIntake
-        );
-        console.log(
-          `${
-            notificationIds
-              ? 'Notifications planifiées'
-              : 'Aucune notification planifiée'
-          }`
-        );
-
-        // Écouter les notifications reçues (pour debugging)
-        const subscription = Notifications.addNotificationReceivedListener(
-          (notification) => {
-            console.log('Notification reçue:', notification);
-
-            // Si l'objectif est atteint, annuler les notifications restantes
-            if (currentIntake >= settings.dailyGoal) {
-              this.cancelAllScheduledNotificationsAsync();
-            }
-          }
-        );
-
-        // Écouter les interactions avec les notifications
-        const interactionSubscription =
-          Notifications.addNotificationResponseReceivedListener((response) => {
-            console.log('Interaction avec notification:', response);
-
-            // Vérifier si c'est une notification d'hydratation
-            const data = response.notification.request.content.data;
-            if (data && data.type === 'hydration') {
-              // On pourrait ici ouvrir l'app directement sur la page d'accueil
-              // pour faciliter l'ajout d'eau
-            }
-          });
-
-        // Retourner les subscriptions pour pouvoir les nettoyer plus tard
-        return { subscription, interactionSubscription };
-      } finally {
-        // Toujours marquer l'initialisation comme terminée
-        await AsyncStorage.removeItem(
-          'notification_initialization_in_progress'
-        );
-      }
+      // Retourner les subscriptions pour pouvoir les nettoyer plus tard
+      return { subscription, interactionSubscription };
     } catch (error) {
-      // En cas d'erreur, s'assurer que le verrou est libéré
-      await AsyncStorage.removeItem('notification_initialization_in_progress');
       console.error('Error initializing notifications:', error);
       return null;
     }

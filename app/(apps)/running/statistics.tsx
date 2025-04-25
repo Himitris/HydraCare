@@ -1,37 +1,34 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { useRunningData } from '@/hooks/useRunningData';
-import {
-    format,
-    isAfter,
-    isBefore,
-    startOfWeek,
-    subDays
-} from 'date-fns';
+import { format, isAfter, isBefore, startOfWeek, subDays } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
-    Activity,
-    Award,
-    BarChart2,
-    Calendar,
-    ChevronDown,
-    Clock,
-    TrendingUp,
+  Activity,
+  Award,
+  BarChart2,
+  Calendar,
+  ChevronDown,
+  Clock,
+  TrendingUp,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
+
+// Importer les fonctions de formatage
+import { formatPace } from '@/utils/formatters';
 
 const { width } = Dimensions.get('window');
 
@@ -266,6 +263,13 @@ export default function RunningStatisticsScreen() {
     },
   };
 
+  // Configuration du graphique d'allure avec formatage amélioré
+  const paceChartConfig = {
+    ...distanceChartConfig,
+    // Formater les labels d'axe Y pour afficher min:sec au lieu de decimal
+    formatYLabel: (value: string) => formatPace(parseFloat(value)),
+  };
+
   // Données pour le graphique de distance par semaine
   const distanceChartData = React.useMemo(() => {
     return {
@@ -298,7 +302,10 @@ export default function RunningStatisticsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
         <LinearGradient
           colors={
             isDarkMode
@@ -314,7 +321,7 @@ export default function RunningStatisticsScreen() {
             Chargement des statistiques...
           </Text>
         </SafeAreaView>
-      </View>
+      </Animated.View>
     );
   }
 
@@ -495,7 +502,8 @@ export default function RunningStatisticsScreen() {
                     <Text
                       style={[styles.statsCardValue, { color: colors.text }]}
                     >
-                      {stats.avgPace.toFixed(1)} min/km
+                      {/* Utiliser la fonction formatPace pour afficher l'allure en min:sec */}
+                      {formatPace(stats.avgPace)} /km
                     </Text>
                     <Text
                       style={[
@@ -554,8 +562,9 @@ export default function RunningStatisticsScreen() {
                     Meilleure allure
                   </Text>
                   <Text style={[styles.recordValue, { color: colors.text }]}>
+                    {/* Utiliser la fonction formatPace pour afficher l'allure en min:sec */}
                     {stats.bestPace
-                      ? `${stats.bestPace.pace?.toFixed(1)} min/km`
+                      ? `${formatPace(stats.bestPace.pace)} /km`
                       : '-'}
                   </Text>
                   <Text
@@ -642,7 +651,7 @@ export default function RunningStatisticsScreen() {
                   data={paceChartData}
                   width={width - 40}
                   height={220}
-                  chartConfig={distanceChartConfig}
+                  chartConfig={paceChartConfig} // Utiliser la configuration avec formatage
                   bezier
                   style={styles.lineChart}
                 />
