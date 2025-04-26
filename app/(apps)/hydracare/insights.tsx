@@ -15,13 +15,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart2, TrendingUp } from 'lucide-react-native';
 import MonthlyHeatmap from '@/components/hydracare/MonthlyHeatMap';
 import ProgressIndicators from '@/components/hydracare/ProgressIndicators';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function InsightsScreen() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-  const { t } = useTranslation();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>(
     'week'
   );

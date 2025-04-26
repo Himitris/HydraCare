@@ -1,64 +1,61 @@
-// app/(apps)/running/_layout.tsx
+// app/(apps)/running/_layout.tsx (mise à jour)
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
-import { Tabs } from 'expo-router';
-import { BarChart2, Filter, Home } from 'lucide-react-native';
+import { Stack } from 'expo-router';
+import { Activity, BarChart2, Filter } from 'lucide-react-native';
 import React from 'react';
-import { Platform } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import CustomTabBar from '@/components/common/CustomTabBar';
 
 export default function RunningLayout() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
+  // Définir les tabs pour Running
+  const tabs = [
+    {
+      name: 'index',
+      label: 'Journal',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <Activity size={size} color={color} />
+      ),
+    },
+    {
+      name: 'statistics',
+      label: 'Stats',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <BarChart2 size={size} color={color} />
+      ),
+    },
+    {
+      name: 'filters',
+      label: 'Filtres',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <Filter size={size} color={color} />
+      ),
+    },
+  ];
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.cardBackground,
-          borderTopWidth: 0,
-          elevation: 5,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-          height: Platform.OS === 'ios' ? 88 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: colors.secondary[500],
-        tabBarInactiveTintColor: colors.neutral[400],
-        tabBarLabelStyle: {
-          fontFamily: 'Inter-Medium',
-          fontSize: 12,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Journal',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-        }}
-      />
+    <View style={styles.container}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="statistics" />
+        <Stack.Screen name="filters" />
+      </Stack>
 
-      <Tabs.Screen
-        name="statistics"
-        options={{
-          title: 'Statistiques',
-          tabBarIcon: ({ color, size }) => (
-            <BarChart2 color={color} size={size} />
-          ),
-        }}
+      <CustomTabBar
+        tabs={tabs}
+        baseRoute="/(apps)/running"
+        activeColor={colors.secondary[500]}
+        inactiveColor={colors.neutral[400]}
       />
-
-      <Tabs.Screen
-        name="filters"
-        options={{
-          title: 'Filtres',
-          tabBarIcon: ({ color, size }) => <Filter color={color} size={size} />,
-        }}
-      />
-    </Tabs>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

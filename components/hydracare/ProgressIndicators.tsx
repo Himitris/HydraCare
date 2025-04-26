@@ -1,29 +1,28 @@
 // components/hydracare/ProgressIndicators.tsx
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-  withSequence,
-  withDelay,
-  interpolateColor,
-} from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { useAppContext } from '@/context/AppContext';
 import {
-  subDays,
+  eachDayOfInterval,
+  endOfWeek,
   format,
   isSameDay,
   startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
+  subDays,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
-import { Trophy, Droplet, TrendingUp, Calendar } from 'lucide-react-native';
+import { Calendar, Droplet, TrendingUp, Trophy } from 'lucide-react-native';
+import React, { useEffect } from 'react';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.85;
@@ -35,7 +34,6 @@ interface ProgressIndicatorsProps {
 const ProgressIndicators = ({ period = 'week' }: ProgressIndicatorsProps) => {
   const { history, settings, dailyProgress, isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-  const { t } = useTranslation();
 
   // Animated values
   const progressAnimation = useSharedValue(0);

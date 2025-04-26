@@ -1,17 +1,15 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
 import { NotificationService } from '@/services/NotificationService';
 import {
   AlertCircle,
   Bell,
   BellOff,
-  Globe,
   Moon,
   RotateCcw,
   Scale,
   Sun,
-  Target,
+  Target
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -40,7 +38,6 @@ export default function SettingsScreen() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalInput, setGoalInput] = useState(settings.dailyGoal.toString());
-  const { t } = useTranslation();
 
   const handleSaveGoal = () => {
     const newGoal = parseInt(goalInput);
@@ -112,9 +109,7 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          {t('settings.title')}
-        </Text>
+        <Text style={[styles.title, { color: colors.text }]}>Paramètres</Text>
 
         <View
           style={[styles.section, { backgroundColor: colors.cardBackground }]}
@@ -128,11 +123,10 @@ export default function SettingsScreen() {
                 <Sun color={colors.text} size={24} />
               )}
               <Text style={[styles.settingText, { color: colors.text }]}>
-                {isDarkMode ? t('settings.darkMode') : t('settings.lightMode')}
+                {isDarkMode ? 'Mode sombre' : 'Mode clair'}
               </Text>
             </View>
           </TouchableOpacity>
-
 
           {/* Daily goal setting */}
           <TouchableOpacity
@@ -146,7 +140,7 @@ export default function SettingsScreen() {
               <Target color={colors.text} size={24} />
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: colors.text }]}>
-                  {t('settings.dailyGoal')}
+                  Objectif quotidien
                 </Text>
                 <Text
                   style={[styles.settingValue, { color: colors.primary[500] }]}
@@ -172,8 +166,8 @@ export default function SettingsScreen() {
               )}
               <Text style={[styles.settingText, { color: colors.text }]}>
                 {settings.remindersEnabled
-                  ? t('settings.remindersEnabled')
-                  : t('settings.remindersDisabled')}
+                  ? 'Rappels activés'
+                  : 'Rappels désactivés'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -200,7 +194,7 @@ export default function SettingsScreen() {
             <View style={styles.settingInfo}>
               <Scale color={colors.text} size={24} />
               <Text style={[styles.settingText, { color: colors.text }]}>
-                {t('settings.unit')}: {settings.preferredUnit.toUpperCase()}
+                Unité: {settings.preferredUnit.toUpperCase()}
               </Text>
             </View>
           </TouchableOpacity>
@@ -235,7 +229,7 @@ export default function SettingsScreen() {
             ]}
           >
             <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {t('settings.dailyGoal')}
+              Objectif quotidien
             </Text>
 
             <View style={styles.inputContainer}>
@@ -270,7 +264,7 @@ export default function SettingsScreen() {
                 onPress={() => setShowGoalModal(false)}
               >
                 <Text style={[styles.buttonText, { color: colors.text }]}>
-                  {t('common.cancel')}
+                  Fermer
                 </Text>
               </TouchableOpacity>
 
@@ -283,7 +277,7 @@ export default function SettingsScreen() {
                 onPress={handleSaveGoal}
               >
                 <Text style={[styles.buttonText, { color: 'white' }]}>
-                  {t('common.save')}
+                  Enregistrer
                 </Text>
               </TouchableOpacity>
             </View>

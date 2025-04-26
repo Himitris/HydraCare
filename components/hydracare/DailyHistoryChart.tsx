@@ -1,31 +1,30 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
 import {
-  StyleSheet,
-  Text,
-  View,
-  Dimensions,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
-import {
-  format,
-  subDays,
-  isSameDay,
-  startOfWeek,
-  endOfWeek,
   addDays,
-  isToday,
-  isSameWeek,
-  startOfMonth,
-  endOfMonth,
   eachWeekOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameWeek,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+  subDays,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useAppContext } from '@/context/AppContext';
-import Colors from '@/constants/Colors';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
 
 type ChartDataItem = {
   date: Date;
@@ -47,7 +46,6 @@ export default function DailyHistoryChart() {
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
-  const { t } = useTranslation();
 
   // Configure week to start on Monday
   const weekStartsOn = 1; // Monday
@@ -269,7 +267,7 @@ export default function DailyHistoryChart() {
               <Text
                 style={[styles.todayButtonText, { color: colors.primary[600] }]}
               >
-                {t('common.today')}
+                Aujourd'hui
               </Text>
             </TouchableOpacity>
           )}
@@ -288,7 +286,7 @@ export default function DailyHistoryChart() {
                   { color: viewMode === 'week' ? 'white' : colors.text },
                 ]}
               >
-                {t('history.week')}
+                Semaine
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -306,7 +304,7 @@ export default function DailyHistoryChart() {
                   { color: viewMode === 'month' ? 'white' : colors.text },
                 ]}
               >
-                {t('history.month')}
+                Mois
               </Text>
             </TouchableOpacity>
           </View>
@@ -496,7 +494,7 @@ export default function DailyHistoryChart() {
         {/* Intake breakdown */}
         <View style={styles.intakeList}>
           <Text style={[styles.intakeTitle, { color: colors.text }]}>
-            {t('history.intakeLog')}
+            Journal de consommation
           </Text>
           {selectedDetails.dayIntake.length > 0 ? (
             selectedDetails.dayIntake.map((item, index) => (
@@ -515,7 +513,7 @@ export default function DailyHistoryChart() {
             ))
           ) : (
             <Text style={[styles.noIntake, { color: colors.neutral[500] }]}>
-              {t('history.noIntakeRecorded')}
+              Aucune consommation d'eau enregistrée pour ce jour
             </Text>
           )}
         </View>

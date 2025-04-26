@@ -1,33 +1,32 @@
 // components/hydracare/MonthlyHeatmap.tsx
-import React, { useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  TouchableOpacity,
-} from 'react-native';
+import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import {
   addMonths,
-  subMonths,
-  format,
   eachDayOfInterval,
-  startOfMonth,
   endOfMonth,
+  format,
   getDay,
+  startOfMonth,
+  subMonths,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import Colors from '@/constants/Colors';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import React, { useMemo } from 'react';
+import {
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
-  withTiming,
-  withSequence,
+  useSharedValue,
   withDelay,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
 
 // Recalcul de la taille des cellules en fonction de la taille disponible
 const { width } = Dimensions.get('window');
@@ -44,7 +43,6 @@ interface MonthlyHeatmapProps {
 const MonthlyHeatmap = ({ onDaySelect }: MonthlyHeatmapProps) => {
   const { history, settings, isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-  const { t } = useTranslation();
   const [currentMonth, setCurrentMonth] = React.useState(new Date());
   const monthAnimValue = useSharedValue(1);
 

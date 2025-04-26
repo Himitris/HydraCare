@@ -1,66 +1,61 @@
-// app/(apps)/todo/_layout.tsx
+// app/(apps)/todo/_layout.tsx (mise à jour)
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
-import { Tabs } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Calendar, CheckSquare, Tag } from 'lucide-react-native';
 import React from 'react';
-import { Platform } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import CustomTabBar from '@/components/common/CustomTabBar';
 
 export default function TodoLayout() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
+  // Définir les tabs pour Todo
+  const tabs = [
+    {
+      name: 'index',
+      label: 'Tâches',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <CheckSquare size={size} color={color} />
+      ),
+    },
+    {
+      name: 'calendar',
+      label: 'Calendrier',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <Calendar size={size} color={color} />
+      ),
+    },
+    {
+      name: 'tags',
+      label: 'Étiquettes',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <Tag size={size} color={color} />
+      ),
+    },
+  ];
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.cardBackground,
-          borderTopWidth: 0,
-          elevation: 5,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-          height: Platform.OS === 'ios' ? 88 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: colors.accent[500],
-        tabBarInactiveTintColor: colors.neutral[400],
-        tabBarLabelStyle: {
-          fontFamily: 'Inter-Medium',
-          fontSize: 12,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Tâches',
-          tabBarIcon: ({ color, size }) => (
-            <CheckSquare color={color} size={size} />
-          ),
-        }}
-      />
+    <View style={styles.container}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="calendar" />
+        <Stack.Screen name="tags" />
+      </Stack>
 
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Calendrier',
-          tabBarIcon: ({ color, size }) => (
-            <Calendar color={color} size={size} />
-          ),
-        }}
+      <CustomTabBar
+        tabs={tabs}
+        baseRoute="/(apps)/todo"
+        activeColor={colors.accent[500]}
+        inactiveColor={colors.neutral[400]}
       />
-
-      <Tabs.Screen
-        name="tags"
-        options={{
-          title: 'Étiquettes',
-          tabBarIcon: ({ color, size }) => <Tag color={color} size={size} />,
-        }}
-      />
-    </Tabs>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

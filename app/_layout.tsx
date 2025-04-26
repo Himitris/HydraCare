@@ -1,7 +1,8 @@
-// app/_layout.tsx
+// app/_layout.tsx (version mise à jour)
 import { AppContextProvider, useAppContext } from '@/context/AppContext';
 import { RunningContextProvider } from '@/context/RunningContext';
-import { initializeI18n } from '@/i18n';
+import { TodoContextProvider } from '@/context/TodoContext';
+import { IntegrationContextProvider } from '@/context/IntegrationContext';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -17,15 +18,50 @@ import { StyleSheet, View } from 'react-native';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import AppSwitcher from './AppSwitcher';
+import Colors from '@/constants/Colors';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-// Main content component with app context
-function RootLayoutContent() {
+// Content with all hooks and contexts
+function AppContent() {
   const { isDarkMode } = useAppContext();
+  const colors = isDarkMode ? Colors.dark : Colors.light;
 
+  return (
+    <View style={styles.container}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      >
+        <Stack.Screen
+          name="index"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(apps)"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{
+            headerShown: false, // Nous gérons notre propre en-tête
+          }}
+        />
+      </Stack>
+    </View>
+  );
+}
+
+// Main layout component with all providers
+export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
@@ -36,7 +72,6 @@ function RootLayoutContent() {
   useEffect(() => {
     async function prepare() {
       try {
-        await initializeI18n();
       } catch (e) {
         console.warn(e);
       } finally {
@@ -53,38 +88,14 @@ function RootLayoutContent() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(apps)"
-          options={{
-            headerShown: false,
-          }}
-        />
-      </Stack>
-      <AppSwitcher />
-    </View>
-  );
-}
-
-export default function RootLayout() {
-  return (
     <GestureHandlerRootView style={styles.container}>
       <AppContextProvider>
         <RunningContextProvider>
-          <RootLayoutContent />
+          <TodoContextProvider>
+            <IntegrationContextProvider>
+              <AppContent />
+            </IntegrationContextProvider>
+          </TodoContextProvider>
         </RunningContextProvider>
       </AppContextProvider>
     </GestureHandlerRootView>

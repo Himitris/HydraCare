@@ -1,7 +1,6 @@
 import DailyHistoryChart from '@/components/hydracare/DailyHistoryChart';
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
-import { useTranslation } from '@/i18n/hooks/useTranslation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart, Clock, Target } from 'lucide-react-native';
 import React, { useMemo } from 'react'; // Importez useMemo
@@ -10,7 +9,6 @@ import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 export default function HistoryScreen() {
   const { history, settings, dailyProgress, isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-  const { t } = useTranslation();
 
   // Utilisez useMemo pour calculer les statistiques uniquement lorsque history ou settings change
   const stats = useMemo(() => {
@@ -87,10 +85,10 @@ export default function HistoryScreen() {
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>
-            {t('history.title')}
+            Statistiques d'hydratation
           </Text>
           <Text style={[styles.subtitle, { color: colors.neutral[500] }]}>
-            {t('history.subtitle')}
+            Suivez votre parcours d'hydratation
           </Text>
         </View>
 
@@ -114,7 +112,7 @@ export default function HistoryScreen() {
               {Math.round(stats.weeklyAverage)}ml
             </Text>
             <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
-              {t('history.weeklyAverage')}
+              Moyenne hebdomadaire
             </Text>
           </View>
 
@@ -136,7 +134,7 @@ export default function HistoryScreen() {
               {stats.daysGoalMet}/{stats.totalDays}
             </Text>
             <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
-              {t('history.goalsMetTitle')}
+              Objectifs atteints
             </Text>
           </View>
 
@@ -158,7 +156,7 @@ export default function HistoryScreen() {
               {stats.currentStreak}
             </Text>
             <Text style={[styles.statLabel, { color: colors.neutral[500] }]}>
-              {t('history.dayStreak')}
+              Série de jours
             </Text>
           </View>
         </View>
@@ -176,11 +174,11 @@ export default function HistoryScreen() {
           ]}
         >
           <Text style={[styles.insightsTitle, { color: colors.text }]}>
-            {t('history.monthlyInsights')}
+            Aperçu mensuel
           </Text>
           <View style={styles.insightItem}>
             <Text style={[styles.insightLabel, { color: colors.neutral[600] }]}>
-              {t('history.averageDailyIntake')}
+              Consomation moyenne quotidienne
             </Text>
             <Text style={[styles.insightValue, { color: colors.primary[500] }]}>
               {Math.round(stats.monthlyAverage)}ml
@@ -188,7 +186,7 @@ export default function HistoryScreen() {
           </View>
           <View style={styles.insightItem}>
             <Text style={[styles.insightLabel, { color: colors.neutral[600] }]}>
-              {t('history.goalAchievementRate')}
+              Taux de réussite des objectifs
             </Text>
             <Text style={[styles.insightValue, { color: colors.success[500] }]}>
               {Math.round((stats.daysGoalMet / stats.totalDays) * 100)}%
@@ -196,10 +194,10 @@ export default function HistoryScreen() {
           </View>
           <View style={styles.insightItem}>
             <Text style={[styles.insightLabel, { color: colors.neutral[600] }]}>
-              {t('history.bestStreak')}
+              Meilleure série
             </Text>
             <Text style={[styles.insightValue, { color: colors.warning[500] }]}>
-              {stats.currentStreak} {t('history.days')}
+              {stats.currentStreak} jours
             </Text>
           </View>
         </View>

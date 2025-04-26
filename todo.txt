@@ -1,0 +1,1 @@
+Ajouter dans les paramètres de HydraCare un bouton "Exporter toutes les données" et un bouton "Importer toutes les données", couvrant les trois applications.
