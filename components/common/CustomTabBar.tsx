@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -35,8 +35,6 @@ export default function CustomTabBar({
   const pathname = usePathname();
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
-
-  // Animation pour le bouton d'accueil
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // Effet pulsant pour le bouton d'accueil
@@ -60,26 +58,32 @@ export default function CustomTabBar({
 
     return () => {
       pulseAnimation.stop();
+      // Assurer le nettoyage complet
+      scaleAnim.setValue(1);
     };
-  }, []);
+  }, [scaleAnim]);
 
   // Diviser les tabs en deux groupes
   const leftTabs = tabs.slice(0, Math.ceil(tabs.length / 2));
   const rightTabs = tabs.slice(Math.ceil(tabs.length / 2));
 
-  // Détecter si un tab est actif
-  const isActive = (tabName: string) => {
-    if (tabName === 'index') {
-      return pathname === `${baseRoute}` || pathname === `${baseRoute}/index`;
-    }
-    return pathname.includes(`${baseRoute}/${tabName}`);
-  };
+  const isActive = useCallback(
+    (tabName: string) => {
+      if (tabName === 'index') {
+        return pathname === `${baseRoute}` || pathname === `${baseRoute}/index`;
+      }
+      return pathname.includes(`${baseRoute}/${tabName}`);
+    },
+    [pathname, baseRoute]
+  );
 
-  // Navigation vers un tab
-  const navigateToTab = (tabName: string) => {
-    const path = tabName === 'index' ? baseRoute : `${baseRoute}/${tabName}`;
-    router.push(path as any); // Utilisez 'as any' pour contourner l'erreur de type
-  };
+  const navigateToTab = useCallback(
+    (tabName: string) => {
+      const path = tabName === 'index' ? baseRoute : `${baseRoute}/${tabName}`;
+      router.push(path as any);
+    },
+    [baseRoute, router]
+  );
 
   // Animation et navigation vers l'accueil
   const navigateToHome = () => {

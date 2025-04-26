@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -45,56 +45,59 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
   const bubbleY3 = useSharedValue(0);
   const splashEffect = useSharedValue(0);
 
-  // Handle water level changes with splash effect
+  // Référence pour stocker la valeur précédente
+  const prevProgressRef = useRef(progress);
+
+  // Optimisation: Éviter les animations inutiles
   useEffect(() => {
     const previousLevel = waterLevel.value;
+    const progressDiff = Math.abs(progress - prevProgressRef.current);
 
-    // Animate water level with better spring configuration
-    waterLevel.value = withSpring(progress, {
-      damping: 12,
-      stiffness: 90,
-      mass: 0.8,
-      overshootClamping: false,
-    });
+    // Animation conditionnelle basée sur la différence significative
+    if (progressDiff > 0.02) {
+      waterLevel.value = withSpring(progress, {
+        damping: 12,
+        stiffness: 90,
+        mass: 0.8,
+        overshootClamping: false,
+      });
 
-    // Trigger splash if water level changed significantly
-    if (Math.abs(progress - previousLevel) > 0.02) {
       splashEffect.value = withSequence(
         withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) }),
         withTiming(0, { duration: 800, easing: Easing.inOut(Easing.ease) })
       );
+
+      prevProgressRef.current = progress;
+    } else if (progressDiff > 0) {
+      // Mise à jour légère sans animation complexe
+      waterLevel.value = withTiming(progress, { duration: 300 });
+      prevProgressRef.current = progress;
     }
-  }, [progress]);
+  }, [progress, waterLevel, splashEffect]);
 
-  // Wave animations
+  // Optimisation des animations de vagues
   useEffect(() => {
-    // Smooth wave animations with different durations and phases
-    waveOffset1.value = withRepeat(
-      withTiming(1, {
-        duration: 3000,
-        easing: Easing.inOut(Easing.sin),
-      }),
-      -1,
-      true
-    );
+    const waveAnimations = [
+      withRepeat(
+        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true
+      ),
+      withRepeat(
+        withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true
+      ),
+    ];
 
-    waveOffset2.value = withRepeat(
-      withTiming(1, {
-        duration: 4200,
-        easing: Easing.inOut(Easing.sin),
-      }),
-      -1,
-      true
-    );
+    waveOffset1.value = waveAnimations[0];
+    waveOffset2.value = waveAnimations[1];
 
-    shimmer.value = withRepeat(
-      withTiming(1, {
-        duration: 4000,
-        easing: Easing.inOut(Easing.cubic),
-      }),
-      -1,
-      true
-    );
+    return () => {
+      // Nettoyage explicite des animations
+      waveOffset1.value = 0;
+      waveOffset2.value = 0;
+    };
   }, []);
 
   // Bubble animations

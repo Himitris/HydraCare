@@ -1,3 +1,4 @@
+// context/AppContext.tsx
 import { NotificationService } from '@/services/NotificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
@@ -6,9 +7,30 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useCallback,
+  useMemo,
 } from 'react';
-import { AppState } from 'react-native';
-import { Platform, NativeModules } from 'react-native';
+import { AppState, Platform, NativeModules } from 'react-native';
+
+// Fonction de debounce pour limiter la fréquence des appels de sauvegarde
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+
+  return function (...args: Parameters<T>) {
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(later, wait);
+  };
+}
 
 // Defining types for our context
 interface UserSettings {
@@ -73,11 +95,14 @@ const AppContext = createContext<AppContextType>({
   toggleDarkMode: () => {},
 });
 
-// Helper to get today's date as a string key
+// Helper to get today's date as a string key - memoized
 const getTodayKey = () => {
   const date = new Date();
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 };
+
+// Cache en mémoire pour éviter des lectures AsyncStorage répétées
+const memoryCache: Record<string, any> = {};
 
 // Provider component
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -88,14 +113,47 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const [history, setHistory] = useState<Record<string, WaterIntake[]>>({});
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Utilisation de refs pour les données qui ne doivent pas provoquer de re-rendus
   const notificationSubscriptionsRef = useRef<any>(null);
   const notificationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const notificationInitializedRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
+  const saveInProgressRef = useRef(false);
 
-  // Calculate daily progress
-  const dailyProgress =
-    todayIntake.reduce((total, item) => total + item.amount, 0) /
-    settings.dailyGoal;
+  // Memoize dailyProgress pour éviter les recalculs
+  const dailyProgress = useMemo(() => {
+    return (
+      todayIntake.reduce((total, item) => total + item.amount, 0) /
+      settings.dailyGoal
+    );
+  }, [todayIntake, settings.dailyGoal]);
+
+  // Debounced save pour éviter trop d'opérations AsyncStorage
+  const debouncedSaveData = useCallback(
+    debounce(async (operations: [string, string][]) => {
+      if (saveInProgressRef.current) return;
+
+      try {
+        saveInProgressRef.current = true;
+        await AsyncStorage.multiSet(operations);
+
+        // Mettre à jour le cache mémoire
+        operations.forEach(([key, value]) => {
+          try {
+            memoryCache[key] = JSON.parse(value);
+          } catch {
+            memoryCache[key] = value;
+          }
+        });
+      } catch (error) {
+        console.error('Error in debouncedSaveData:', error);
+      } finally {
+        saveInProgressRef.current = false;
+      }
+    }, 500),
+    []
+  );
 
   // Clean up notification subscriptions on unmount
   useEffect(() => {
@@ -135,7 +193,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     initializeNotifications();
-  }, [isLoading, settings.remindersEnabled]);
+  }, [isLoading, settings.remindersEnabled, todayIntake]);
 
   // Update notifications when water intake changes (only if notifications are enabled)
   useEffect(() => {
@@ -167,43 +225,60 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [todayIntake, settings.remindersEnabled, settings.dailyGoal, isLoading]);
 
-  // Save all data when app state changes (going to background)
-  useEffect(() => {
-    const subscription = AppState.addEventListener(
-      'change',
-      async (nextAppState) => {
-        if (nextAppState === 'background' || nextAppState === 'inactive') {
-          await saveAllData();
-        }
-      }
-    );
+  // Fonction optimisée pour sauvegarder toutes les données
+  const saveAllData = useCallback(async () => {
+    if (saveInProgressRef.current) return;
 
-    return () => {
-      subscription.remove();
-    };
-  }, [settings, todayIntake, history, isDarkMode]);
-
-  // Function to save all data
-  const saveAllData = async () => {
     try {
+      saveInProgressRef.current = true;
       const today = getTodayKey();
 
       // Update history with current day's data
       const updatedHistory = { ...history, [today]: todayIntake };
 
-      await AsyncStorage.multiSet([
+      const operations: [string, string][] = [
         ['hydracare-settings', JSON.stringify(settings)],
         ['hydracare-today', JSON.stringify(todayIntake)],
         ['hydracare-today-key', today],
         ['hydracare-history', JSON.stringify(updatedHistory)],
         ['hydracare-theme', JSON.stringify({ darkMode: isDarkMode })],
-      ]);
+      ];
 
-      console.log('All data saved successfully');
+      await AsyncStorage.multiSet(operations);
+
+      // Mise à jour du cache mémoire
+      operations.forEach(([key, value]) => {
+        try {
+          memoryCache[key] = JSON.parse(value);
+        } catch {
+          memoryCache[key] = value;
+        }
+      });
     } catch (error) {
       console.error('Error saving data:', error);
+    } finally {
+      saveInProgressRef.current = false;
     }
-  };
+  }, [settings, todayIntake, history, isDarkMode]);
+
+  // Écouteur optimisé pour les changements d'état de l'application
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      // Sauvegarder uniquement lors des transitions vers l'arrière-plan
+      if (
+        appStateRef.current.match(/active|foreground/) &&
+        (nextAppState === 'background' || nextAppState === 'inactive')
+      ) {
+        saveAllData();
+      }
+
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [saveAllData]);
 
   // Check if we need to reset today's intake (new day)
   useEffect(() => {
@@ -211,23 +286,35 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
       const currentKey = getTodayKey();
 
       try {
-        const savedTodayKey = await AsyncStorage.getItem('hydracare-today-key');
+        // Utiliser le cache mémoire si disponible
+        let savedTodayKey = memoryCache['hydracare-today-key'];
+        if (savedTodayKey === undefined) {
+          savedTodayKey = await AsyncStorage.getItem('hydracare-today-key');
+          if (savedTodayKey) {
+            memoryCache['hydracare-today-key'] = savedTodayKey;
+          }
+        }
 
         if (savedTodayKey !== currentKey) {
           // It's a new day, save yesterday's data to history
           if (savedTodayKey && todayIntake.length > 0) {
             const updatedHistory = { ...history, [savedTodayKey]: todayIntake };
             setHistory(updatedHistory);
+
             await AsyncStorage.setItem(
               'hydracare-history',
               JSON.stringify(updatedHistory)
             );
+            memoryCache['hydracare-history'] = updatedHistory;
           }
 
           // Reset today's intake
           setTodayIntake([]);
+
           await AsyncStorage.setItem('hydracare-today-key', currentKey);
           await AsyncStorage.setItem('hydracare-today', JSON.stringify([]));
+          memoryCache['hydracare-today-key'] = currentKey;
+          memoryCache['hydracare-today'] = [];
 
           // Reset notifications for the new day (only if enabled)
           if (settings.remindersEnabled && notificationInitializedRef.current) {
@@ -239,14 +326,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
 
-    // Check on mount and set up interval
+    // Check on mount and set up interval - reduced frequency to save resources
     checkAndResetDaily();
-    const interval = setInterval(checkAndResetDaily, 60000); // Check every minute
+    const interval = setInterval(checkAndResetDaily, 300000); // Check every 5 minutes instead of every minute
 
     return () => clearInterval(interval);
   }, [todayIntake, history, settings]);
 
-  // Load data from storage on mount
+  // Load data from storage on mount - optimisé avec le modèle de cache
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -269,7 +356,17 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           savedTodayKey,
           savedHistoryRaw,
           savedThemeRaw,
-        ] = values.map(([_, value]) => value);
+        ] = values.map(([key, value]) => {
+          // Mettre à jour le cache
+          if (value) {
+            try {
+              memoryCache[key] = JSON.parse(value);
+            } catch {
+              memoryCache[key] = value;
+            }
+          }
+          return value;
+        });
 
         const currentKey = getTodayKey();
 
@@ -309,6 +406,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           // It's a new day or first launch
           setTodayIntake([]);
           await AsyncStorage.setItem('hydracare-today-key', currentKey);
+          memoryCache['hydracare-today-key'] = currentKey;
         }
 
         // Parse theme preference with error handling
@@ -331,19 +429,18 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
     loadData();
   }, []);
 
-  // Function to update settings
-  const updateSettings = async (newSettings: Partial<UserSettings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
-    setSettings(updatedSettings);
+  // Function to update settings - optimized with debounce
+  const updateSettings = useCallback(
+    async (newSettings: Partial<UserSettings>) => {
+      const updatedSettings = { ...settings, ...newSettings };
+      setSettings(updatedSettings);
 
-    // Save immediately
-    try {
-      await AsyncStorage.setItem(
-        'hydracare-settings',
-        JSON.stringify(updatedSettings)
-      );
+      // Save with debounce
+      debouncedSaveData([
+        ['hydracare-settings', JSON.stringify(updatedSettings)],
+      ]);
 
-      // Update notifications if reminder setting changed
+      // Update notifications if reminder setting changed - not debounced as it's critical
       if ('remindersEnabled' in newSettings) {
         const totalIntake = todayIntake.reduce(
           (total, item) => total + item.amount,
@@ -374,91 +471,89 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           notificationInitializedRef.current = false;
         }
       }
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
-  };
+    },
+    [settings, todayIntake, debouncedSaveData]
+  );
 
-  // Function to add water intake
-  const addWaterIntake = async (amount: number) => {
-    const newIntake: WaterIntake = {
-      id: Date.now().toString(),
-      amount,
-      timestamp: Date.now(),
-      unit: settings.preferredUnit,
-    };
+  // Function to add water intake - optimized with debounce
+  const addWaterIntake = useCallback(
+    async (amount: number) => {
+      const newIntake: WaterIntake = {
+        id: Date.now().toString(),
+        amount,
+        timestamp: Date.now(),
+        unit: settings.preferredUnit,
+      };
 
-    const updatedTodayIntake = [...todayIntake, newIntake];
-    setTodayIntake(updatedTodayIntake);
+      const updatedTodayIntake = [...todayIntake, newIntake];
+      setTodayIntake(updatedTodayIntake);
 
-    // Update history for today
-    const today = getTodayKey();
-    const updatedHistory = {
-      ...history,
-      [today]: updatedTodayIntake,
-    };
-    setHistory(updatedHistory);
+      // Update history for today
+      const today = getTodayKey();
+      const updatedHistory = {
+        ...history,
+        [today]: updatedTodayIntake,
+      };
+      setHistory(updatedHistory);
 
-    if (Platform.OS === 'android') {
-      try {
-        const currentAmount =
-          Math.round(dailyProgress * settings.dailyGoal) + amount;
+      // Update Android widget immediately - this should not be debounced
+      if (Platform.OS === 'android') {
+        try {
+          const currentAmount =
+            Math.round(dailyProgress * settings.dailyGoal) + amount;
 
-        // Utilisation de SharedPreferences pour le widget
-        const { SharedStorage } = NativeModules;
-        if (SharedStorage) {
-          await SharedStorage.setItem(
-            'dailyGoal',
-            settings.dailyGoal.toString()
-          );
-          await SharedStorage.setItem(
-            'currentIntake',
-            currentAmount.toString()
-          );
+          // Utilisation de SharedPreferences pour le widget
+          const { SharedStorage } = NativeModules;
+          if (SharedStorage) {
+            await SharedStorage.setItem(
+              'dailyGoal',
+              settings.dailyGoal.toString()
+            );
+            await SharedStorage.setItem(
+              'currentIntake',
+              currentAmount.toString()
+            );
+          }
+        } catch (error) {
+          console.error('Error syncing widget data:', error);
         }
-      } catch (error) {
-        console.error('Error syncing widget data:', error);
       }
-    }
 
-    // Save immediately
-    try {
-      await AsyncStorage.multiSet([
+      // Save with debounce to reduce disk operations
+      debouncedSaveData([
         ['hydracare-today', JSON.stringify(updatedTodayIntake)],
         ['hydracare-history', JSON.stringify(updatedHistory)],
       ]);
-    } catch (error) {
-      console.error('Error saving water intake:', error);
-    }
-  };
+    },
+    [todayIntake, history, settings, dailyProgress, debouncedSaveData]
+  );
 
-  // Function to remove water intake
-  const removeWaterIntake = async (id: string) => {
-    // Remove from today's intake
-    const updatedTodayIntake = todayIntake.filter((item) => item.id !== id);
-    setTodayIntake(updatedTodayIntake);
+  // Function to remove water intake - optimized with debounce
+  const removeWaterIntake = useCallback(
+    async (id: string) => {
+      // Remove from today's intake
+      const updatedTodayIntake = todayIntake.filter((item) => item.id !== id);
+      setTodayIntake(updatedTodayIntake);
 
-    // Update history for today
-    const today = getTodayKey();
-    const updatedHistory = {
-      ...history,
-      [today]: updatedTodayIntake,
-    };
-    setHistory(updatedHistory);
+      // Update history for today
+      const today = getTodayKey();
+      const updatedHistory = {
+        ...history,
+        [today]: updatedTodayIntake,
+      };
+      setHistory(updatedHistory);
 
-    // Save immediately
-    try {
-      await AsyncStorage.multiSet([
+      // Save with debounce
+      debouncedSaveData([
         ['hydracare-today', JSON.stringify(updatedTodayIntake)],
         ['hydracare-history', JSON.stringify(updatedHistory)],
       ]);
-    } catch (error) {
-      console.error('Error removing water intake:', error);
-    }
-  };
+    },
+    [todayIntake, history, debouncedSaveData]
+  );
 
-  // Function to reset today's intake
-  const resetTodayIntake = async () => {
+  // Function to reset today's intake - not debounced as it's infrequent
+  const resetTodayIntake = useCallback(async () => {
     setTodayIntake([]);
 
     // Also clear today from history
@@ -467,33 +562,80 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
     delete updatedHistory[today];
     setHistory(updatedHistory);
 
-    // Save immediately
+    // Save immediately - no need for debounce as this is an infrequent operation
     try {
       await AsyncStorage.multiSet([
         ['hydracare-today', JSON.stringify([])],
         ['hydracare-history', JSON.stringify(updatedHistory)],
       ]);
+
+      // Mettre à jour le cache
+      memoryCache['hydracare-today'] = [];
+      memoryCache['hydracare-history'] = updatedHistory;
     } catch (error) {
       console.error("Error resetting today's intake:", error);
     }
-  };
+  }, [history]);
 
-  // Function to clear all history
-  const clearHistory = async () => {
+  // Function to clear all history - not debounced as it's infrequent
+  const clearHistory = useCallback(async () => {
     setHistory({});
     try {
       await AsyncStorage.removeItem('hydracare-history');
+      memoryCache['hydracare-history'] = {};
     } catch (error) {
       console.error('Error clearing history:', error);
     }
-  };
+  }, []);
 
-  // Function to toggle dark mode
-  const toggleDarkMode = async () => {
+  // Function to toggle dark mode - not debounced as it's infrequent
+  const toggleDarkMode = useCallback(async () => {
     const newDarkMode = !isDarkMode;
     setIsDarkMode(newDarkMode);
-    await updateSettings({ darkMode: newDarkMode });
-  };
+
+    // Update settings immediately
+    const updatedSettings = { ...settings, darkMode: newDarkMode };
+    setSettings(updatedSettings);
+
+    await AsyncStorage.multiSet([
+      ['hydracare-settings', JSON.stringify(updatedSettings)],
+      ['hydracare-theme', JSON.stringify({ darkMode: newDarkMode })],
+    ]);
+
+    // Mettre à jour le cache
+    memoryCache['hydracare-settings'] = updatedSettings;
+    memoryCache['hydracare-theme'] = { darkMode: newDarkMode };
+  }, [isDarkMode, settings]);
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      settings,
+      updateSettings,
+      todayIntake,
+      addWaterIntake,
+      removeWaterIntake,
+      resetTodayIntake,
+      history,
+      clearHistory,
+      dailyProgress,
+      isDarkMode,
+      toggleDarkMode,
+    }),
+    [
+      settings,
+      updateSettings,
+      todayIntake,
+      addWaterIntake,
+      removeWaterIntake,
+      resetTodayIntake,
+      history,
+      clearHistory,
+      dailyProgress,
+      isDarkMode,
+      toggleDarkMode,
+    ]
+  );
 
   // Don't render children until data is loaded
   if (isLoading) {
@@ -501,23 +643,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
   }
 
   return (
-    <AppContext.Provider
-      value={{
-        settings,
-        updateSettings,
-        todayIntake,
-        addWaterIntake,
-        removeWaterIntake,
-        resetTodayIntake,
-        history,
-        clearHistory,
-        dailyProgress,
-        isDarkMode,
-        toggleDarkMode,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 };
 

@@ -13,7 +13,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import 'react-native-gesture-handler';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -24,41 +24,34 @@ import Colors from '@/constants/Colors';
 SplashScreen.preventAutoHideAsync();
 
 // Content with all hooks and contexts
-function AppContent() {
+const AppContent = React.memo(() => {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
+
+  // Optimiser les options de navigation
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      animation: 'slide_from_right' as const,
+      // Accélérer les transitions
+      animationDuration: 200,
+      // Éviter les rendus superposés
+      freezeOnBlur: true,
+    }),
+    []
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      >
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(apps)"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="settings"
-          options={{
-            headerShown: false, // Nous gérons notre propre en-tête
-          }}
-        />
+      <Stack screenOptions={screenOptions}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(apps)" />
+        <Stack.Screen name="settings" />
       </Stack>
     </View>
   );
-}
+});
 
 // Main layout component with all providers
 export default function RootLayout() {
@@ -69,22 +62,29 @@ export default function RootLayout() {
     'Inter-Bold': Inter_700Bold,
   });
 
+  // Optimisation: état pour suivre les rendus initiaux
+  const [isAppReady, setIsAppReady] = useState(false);
+
   useEffect(() => {
     async function prepare() {
       try {
+        // Attendre le chargement des polices et autres ressources
+        if (fontsLoaded) {
+          // Retarder légèrement pour permettre le rendu initial
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          await SplashScreen.hideAsync();
+          setIsAppReady(true);
+        }
       } catch (e) {
         console.warn(e);
-      } finally {
-        if (fontsLoaded) {
-          await SplashScreen.hideAsync();
-        }
       }
     }
     prepare();
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
-    return null;
+  if (!fontsLoaded || !isAppReady) {
+    // Retourner un écran vide plutôt que null pour une meilleure transition
+    return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
   }
 
   return (
