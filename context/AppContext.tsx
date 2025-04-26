@@ -394,19 +394,76 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
 
         // Parse today's intake with error handling
-        if (savedTodayRaw && savedTodayKey === currentKey) {
+        if (savedTodayRaw) {
           try {
+            // S'assurer que savedTodayRaw contient des données valides
             const parsedToday = JSON.parse(savedTodayRaw);
-            setTodayIntake(parsedToday);
+
+            if (Array.isArray(parsedToday)) {
+              // Vérifier si le jour actuel correspond au savedTodayKey
+              if (savedTodayKey === currentKey) {
+                setTodayIntake(parsedToday);
+                console.log(
+                  'Today intake loaded successfully:',
+                  parsedToday.length,
+                  'items'
+                );
+              } else {
+                console.log('New day detected, resetting today intake');
+                // C'est un nouveau jour
+                setTodayIntake([]);
+
+                // Sauvegarder la journée précédente dans l'historique
+                if (savedTodayKey && parsedToday.length > 0) {
+                  const updatedHistory = {
+                    ...history,
+                    [savedTodayKey]: parsedToday,
+                  };
+                  setHistory(updatedHistory);
+                  await AsyncStorage.setItem(
+                    'hydracare-history',
+                    JSON.stringify(updatedHistory)
+                  );
+                  memoryCache['hydracare-history'] = updatedHistory;
+                }
+
+                // Mettre à jour le jour actuel
+                await AsyncStorage.setItem('hydracare-today-key', currentKey);
+                await AsyncStorage.setItem(
+                  'hydracare-today',
+                  JSON.stringify([])
+                );
+                memoryCache['hydracare-today-key'] = currentKey;
+                memoryCache['hydracare-today'] = [];
+              }
+            } else {
+              console.log('Invalid today intake format, resetting');
+              setTodayIntake([]);
+
+              // Réinitialiser les données du jour
+              await AsyncStorage.setItem('hydracare-today-key', currentKey);
+              await AsyncStorage.setItem('hydracare-today', JSON.stringify([]));
+              memoryCache['hydracare-today-key'] = currentKey;
+              memoryCache['hydracare-today'] = [];
+            }
           } catch (e) {
             console.error('Error parsing today intake:', e);
             setTodayIntake([]);
+
+            // En cas d'erreur, réinitialiser les données
+            await AsyncStorage.setItem('hydracare-today-key', currentKey);
+            await AsyncStorage.setItem('hydracare-today', JSON.stringify([]));
+            memoryCache['hydracare-today-key'] = currentKey;
+            memoryCache['hydracare-today'] = [];
           }
         } else {
-          // It's a new day or first launch
+          // Pas de données pour aujourd'hui
+          console.log('No today intake data, initializing');
           setTodayIntake([]);
           await AsyncStorage.setItem('hydracare-today-key', currentKey);
+          await AsyncStorage.setItem('hydracare-today', JSON.stringify([]));
           memoryCache['hydracare-today-key'] = currentKey;
+          memoryCache['hydracare-today'] = [];
         }
 
         // Parse theme preference with error handling

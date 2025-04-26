@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -9,6 +9,7 @@ import Animated, {
   Easing,
   interpolate,
   withSpring,
+  runOnJS,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppContext } from '@/context/AppContext';
@@ -19,7 +20,7 @@ import Svg, {
   RadialGradient,
   Stop,
   ClipPath,
-  Rect,
+  Rect
 } from 'react-native-svg';
 
 interface WaterGlassProps {
@@ -44,16 +45,46 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
   const bubbleY2 = useSharedValue(0);
   const bubbleY3 = useSharedValue(0);
   const splashEffect = useSharedValue(0);
+  const initialAnimation = useSharedValue(0);
 
-  // Référence pour stocker la valeur précédente
-  const prevProgressRef = useRef(progress);
-
-  // Optimisation: Éviter les animations inutiles
+  // Initialiser l'animation au premier rendu
   useEffect(() => {
-    const previousLevel = waterLevel.value;
-    const progressDiff = Math.abs(progress - prevProgressRef.current);
+    // Initialiser le niveau d'eau immédiatement avec la valeur de progress
+    waterLevel.value = 0; // Partir de 0 pour créer une animation initiale
 
-    // Animation conditionnelle basée sur la différence significative
+    // Animation d'initialisation avec un léger délai pour être visible
+    setTimeout(() => {
+      initialAnimation.value = withTiming(1, { duration: 1000 });
+      waterLevel.value = withSpring(progress, {
+        damping: 12,
+        stiffness: 90,
+        mass: 0.8,
+        overshootClamping: false,
+      });
+
+      // Ajouter un petit effet de splash à l'initialisation
+      if (progress > 0) {
+        splashEffect.value = withSequence(
+          withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }),
+          withTiming(0, { duration: 800, easing: Easing.inOut(Easing.ease) })
+        );
+      }
+    }, 300);
+
+    // Démarrer l'animation de shimmer (reflet)
+    shimmer.value = withRepeat(
+      withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+  }, []); // Dépendance vide pour s'exécuter uniquement au montage
+
+  // Mise à jour lors des changements de progress
+  useEffect(() => {
+    // Animation conditionelle quand progress change
+    const progressDiff = Math.abs(progress - waterLevel.value);
+
+    // Animation plus visible pour les gros changements
     if (progressDiff > 0.02) {
       waterLevel.value = withSpring(progress, {
         damping: 12,
@@ -66,42 +97,27 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
         withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) }),
         withTiming(0, { duration: 800, easing: Easing.inOut(Easing.ease) })
       );
-
-      prevProgressRef.current = progress;
     } else if (progressDiff > 0) {
       // Mise à jour légère sans animation complexe
       waterLevel.value = withTiming(progress, { duration: 300 });
-      prevProgressRef.current = progress;
     }
-  }, [progress, waterLevel, splashEffect]);
+  }, [progress]);
 
   // Optimisation des animations de vagues
   useEffect(() => {
-    const waveAnimations = [
-      withRepeat(
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true
-      ),
-      withRepeat(
-        withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true
-      ),
-    ];
+    // Animation plus naturelle des vagues
+    waveOffset1.value = withRepeat(
+      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+    waveOffset2.value = withRepeat(
+      withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
 
-    waveOffset1.value = waveAnimations[0];
-    waveOffset2.value = waveAnimations[1];
-
-    return () => {
-      // Nettoyage explicite des animations
-      waveOffset1.value = 0;
-      waveOffset2.value = 0;
-    };
-  }, []);
-
-  // Bubble animations
-  useEffect(() => {
+    // Animation des bulles
     const animateBubble = (
       bubbleValue: Animated.SharedValue<number>,
       delay: number,
@@ -125,11 +141,21 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
     animateBubble(bubbleY1, 0, 2500);
     animateBubble(bubbleY2, 900, 3100);
     animateBubble(bubbleY3, 1800, 2800);
+
+    return () => {
+      // Nettoyage explicite des animations
+      waveOffset1.value = 0;
+      waveOffset2.value = 0;
+      bubbleY1.value = 0;
+      bubbleY2.value = 0;
+      bubbleY3.value = 0;
+    };
   }, []);
 
   // Animated styles for water
   const waterStyle = useAnimatedStyle(() => ({
     height: `${waterLevel.value * 100}%`,
+    opacity: interpolate(initialAnimation.value, [0, 1], [0.7, 1]),
   }));
 
   // Improved wave animations
@@ -180,7 +206,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
     opacity: interpolate(splashEffect.value, [0, 0.3, 1], [0, 0.4, 0]),
   }));
 
-  // Improved bubble animations
+  // Améliorations des animations de bulles
   const createBubbleStyle = (
     bubbleValue: Animated.SharedValue<number>,
     offsetX: number
@@ -217,8 +243,18 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
   const bubble2Style = createBubbleStyle(bubbleY2, -10);
   const bubble3Style = createBubbleStyle(bubbleY3, 6);
 
+  // Animation du verre entier
+  const glassStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        scale: interpolate(initialAnimation.value, [0, 1], [0.97, 1]),
+      },
+    ],
+    opacity: interpolate(initialAnimation.value, [0, 1], [0.8, 1]),
+  }));
+
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, glassStyle]}>
       {/* Background glow */}
       <View
         style={[
@@ -342,7 +378,7 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
           style={styles.reflection}
         />
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

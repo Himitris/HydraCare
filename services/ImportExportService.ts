@@ -93,33 +93,58 @@ export class ImportExportService {
         });
 
         if (directSave) {
-          // Demander les permissions pour accéder à la galerie/stockage
-          const { status } = await MediaLibrary.requestPermissionsAsync();
+          if (Platform.OS === 'android') {
+            // Demander la permission
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert(
+                'Permission requise',
+                'Pour enregistrer directement sur votre appareil, HydraCare a besoin de votre permission pour accéder au stockage.'
+              );
+              return false;
+            }
 
-          if (status !== 'granted') {
-            Alert.alert(
-              'Permission requise',
-              'Pour enregistrer directement sur votre appareil, HydraCare a besoin de votre permission pour accéder au stockage.'
-            );
-            return false;
+            try {
+              // Utiliser StorageAccessFramework pour créer un fichier
+              const permissions =
+                await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+              if (!permissions.granted) {
+                Alert.alert(
+                  'Permission refusée',
+                  "Vous devez autoriser l'accès pour sauvegarder le fichier."
+                );
+                return false;
+              }
+
+              const dirUri = permissions.directoryUri;
+
+              // Créer un fichier et écrire dedans
+              const fileUri =
+                await FileSystem.StorageAccessFramework.createFileAsync(
+                  dirUri,
+                  fileName,
+                  'application/json'
+                );
+
+              await FileSystem.writeAsStringAsync(fileUri, jsonData, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+
+              Alert.alert(
+                'Exportation réussie',
+                'Le fichier a été enregistré avec succès dans le dossier sélectionné.'
+              );
+
+              return true;
+            } catch (e) {
+              console.error('Erreur lors de la sauvegarde du fichier:', e);
+              Alert.alert(
+                'Erreur',
+                "Une erreur est survenue lors de l'enregistrement."
+              );
+              return false;
+            }
           }
-
-          // Enregistrer le fichier directement dans les téléchargements
-          const asset = await MediaLibrary.createAssetAsync(fileUri);
-
-          // Créer un album "HydraCare" s'il n'existe pas déjà
-          const album = await MediaLibrary.getAlbumAsync('HydraCare');
-          if (album === null) {
-            await MediaLibrary.createAlbumAsync('HydraCare', asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          }
-
-          Alert.alert(
-            'Exportation réussie',
-            'Le fichier a été enregistré dans la galerie, dossier "HydraCare"'
-          );
-          return true;
         } else {
           // Option de partage classique
           const canShare = await Sharing.isAvailableAsync();
