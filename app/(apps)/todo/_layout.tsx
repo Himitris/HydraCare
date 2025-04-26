@@ -1,8 +1,8 @@
-// app/(apps)/todo/_layout.tsx (mise à jour)
+// app/(apps)/todo/_layout.tsx (suite)
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { Stack } from 'expo-router';
-import { Calendar, CheckSquare, Tag } from 'lucide-react-native';
+import { Calendar, CheckSquare, Tag, BarChart2 } from 'lucide-react-native';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import CustomTabBar from '@/components/common/CustomTabBar';
@@ -11,13 +11,20 @@ export default function TodoLayout() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
-  // Définir les tabs pour Todo
+  // Définir les tabs pour Todo - Ajout de l'onglet Statistiques
   const tabs = [
     {
       name: 'index',
       label: 'Tâches',
       icon: ({ color, size }: { color: string; size: number }) => (
         <CheckSquare size={size} color={color} />
+      ),
+    },
+    {
+      name: 'statistics',
+      label: 'Stats',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <BarChart2 size={size} color={color} />
       ),
     },
     {
@@ -40,6 +47,7 @@ export default function TodoLayout() {
     <View style={styles.container}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="statistics" />
         <Stack.Screen name="calendar" />
         <Stack.Screen name="tags" />
       </Stack>

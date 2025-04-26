@@ -1,3 +1,4 @@
+// components/common/CustomTabBar.tsx
 import React, { useRef, useEffect, useCallback } from 'react';
 import {
   View,
@@ -6,6 +7,7 @@ import {
   StyleSheet,
   Platform,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Home } from 'lucide-react-native';
@@ -25,6 +27,8 @@ interface CustomTabBarProps {
   inactiveColor: string;
 }
 
+const { width } = Dimensions.get('window');
+
 export default function CustomTabBar({
   tabs,
   baseRoute,
@@ -36,6 +40,10 @@ export default function CustomTabBar({
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  
+  // Animation pour l'indicateur d'onglet actif
+  const activeTabIndicatorWidth = useRef(new Animated.Value(0)).current;
+  const activeTabIndicatorPosition = useRef(new Animated.Value(0)).current;
 
   // Effet pulsant pour le bouton d'accueil
   useEffect(() => {
@@ -77,6 +85,53 @@ export default function CustomTabBar({
     [pathname, baseRoute]
   );
 
+  // Mettre à jour l'indicateur d'onglet actif
+  useEffect(() => {
+    // Trouver l'index de l'onglet actif
+    let activeTabIndex = -1;
+    let isLeftSide = true;
+    
+    for (let i = 0; i < leftTabs.length; i++) {
+      if (isActive(leftTabs[i].name)) {
+        activeTabIndex = i;
+        isLeftSide = true;
+        break;
+      }
+    }
+    
+    if (activeTabIndex === -1) {
+      for (let i = 0; i < rightTabs.length; i++) {
+        if (isActive(rightTabs[i].name)) {
+          activeTabIndex = i;
+          isLeftSide = false;
+          break;
+        }
+      }
+    }
+    
+    if (activeTabIndex !== -1) {
+      // Calculer la position et la largeur de l'indicateur
+      const tabWidth = (width - 70) / tabs.length;
+      const position = isLeftSide 
+        ? activeTabIndex * tabWidth 
+        : (leftTabs.length + activeTabIndex) * tabWidth + 70; // +70 pour l'espace du bouton d'accueil
+      
+      // Animer l'indicateur
+      Animated.parallel([
+        Animated.spring(activeTabIndicatorWidth, {
+          toValue: tabWidth * 0.6, // 60% de la largeur de l'onglet
+          friction: 8,
+          useNativeDriver: false,
+        }),
+        Animated.spring(activeTabIndicatorPosition, {
+          toValue: position + (tabWidth * 0.2), // Centrer l'indicateur
+          friction: 8,
+          useNativeDriver: false,
+        })
+      ]).start();
+    }
+  }, [pathname, leftTabs, rightTabs, isActive]);
+
   const navigateToTab = useCallback(
     (tabName: string) => {
       const path = tabName === 'index' ? baseRoute : `${baseRoute}/${tabName}`;
@@ -114,13 +169,6 @@ export default function CustomTabBar({
         style={styles.tabItem}
         onPress={() => navigateToTab(tab.name)}
       >
-        {/* Indicateur d'onglet actif */}
-        {active && (
-          <View
-            style={[styles.activeIndicator, { backgroundColor: activeColor }]}
-          />
-        )}
-
         <View
           style={[
             styles.tabContent,
@@ -149,8 +197,22 @@ export default function CustomTabBar({
     );
   };
 
+  // Styles de l'indicateur d'onglet actif
+  const indicatorStyle = {
+    position: 'absolute',
+    top: 4,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: activeColor,
+    width: activeTabIndicatorWidth,
+    left: activeTabIndicatorPosition,
+  };
+
   return (
     <View style={[styles.tabBar, { backgroundColor: colors.cardBackground }]}>
+      {/* Indicateur d'onglet actif */}
+      <Animated.View style={indicatorStyle as any} />
+      
       {/* Tabs de gauche */}
       {leftTabs.map((tab) => renderTab(tab, true))}
 
@@ -216,13 +278,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 12,
-  },
-  activeIndicator: {
-    position: 'absolute',
-    top: 0,
-    width: 20,
-    height: 3,
-    borderRadius: 2,
   },
   tabLabel: {
     fontSize: 10,

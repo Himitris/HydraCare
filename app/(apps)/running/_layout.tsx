@@ -1,8 +1,8 @@
-// app/(apps)/running/_layout.tsx (mise à jour)
+// app/(apps)/running/_layout.tsx
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { Stack } from 'expo-router';
-import { Activity, BarChart2, Filter } from 'lucide-react-native';
+import { Activity, BarChart2, Filter, Calendar } from 'lucide-react-native';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import CustomTabBar from '@/components/common/CustomTabBar';
@@ -11,7 +11,7 @@ export default function RunningLayout() {
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
-  // Définir les tabs pour Running
+  // Définir les tabs pour Running - Ajout de l'onglet Programme
   const tabs = [
     {
       name: 'index',
@@ -28,6 +28,13 @@ export default function RunningLayout() {
       ),
     },
     {
+      name: 'program',
+      label: 'Program',
+      icon: ({ color, size }: { color: string; size: number }) => (
+        <Calendar size={size} color={color} />
+      ),
+    },
+    {
       name: 'filters',
       label: 'Filtres',
       icon: ({ color, size }: { color: string; size: number }) => (
@@ -41,6 +48,7 @@ export default function RunningLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="statistics" />
+        <Stack.Screen name="program" />
         <Stack.Screen name="filters" />
       </Stack>
 
