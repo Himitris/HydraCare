@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as MediaLibrary from 'expo-media-library'; // Ajout de cette dépendance
 import { Platform, Alert } from 'react-native';
 
 // Clés de stockage utilisées dans l'application
@@ -36,8 +37,9 @@ interface ExportData {
 export class ImportExportService {
   /**
    * Exporte toutes les données de l'application vers un fichier
+   * @param directSave Si true, enregistre directement sur l'appareil au lieu de partager
    */
-  static async exportAllData(): Promise<boolean> {
+  static async exportAllData(directSave: boolean = false): Promise<boolean> {
     try {
       // Récupérer toutes les données
       const allData: { [key: string]: any } = {};
@@ -80,22 +82,9 @@ export class ImportExportService {
         .toString()
         .padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}.json`;
 
-      // Gestion spécifique pour le web et les appareils mobiles
-      if (Platform.OS === 'web') {
-        // Pour le Web, télécharger directement
-        const blob = new Blob([jsonData], {
-          type: 'application/json;charset=utf-8;',
-        });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', fileName);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        // Pour les appareils mobiles
+      // Pour Android, on peut soit partager soit sauvegarder directement
+      if (Platform.OS === 'android') {
+        // Créer d'abord le fichier dans le répertoire temporaire
         const fileUri = FileSystem.documentDirectory + fileName;
 
         // Écrire le fichier
@@ -103,28 +92,61 @@ export class ImportExportService {
           encoding: FileSystem.EncodingType.UTF8,
         });
 
-        // Vérifier si le partage est disponible
-        const canShare = await Sharing.isAvailableAsync();
+        if (directSave) {
+          // Demander les permissions pour accéder à la galerie/stockage
+          const { status } = await MediaLibrary.requestPermissionsAsync();
 
-        if (canShare) {
-          // Partager le fichier
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/json',
-            dialogTitle: 'Exporter les données HydraCare',
-            UTI: 'public.json',
-          });
-        } else {
+          if (status !== 'granted') {
+            Alert.alert(
+              'Permission requise',
+              'Pour enregistrer directement sur votre appareil, HydraCare a besoin de votre permission pour accéder au stockage.'
+            );
+            return false;
+          }
+
+          // Enregistrer le fichier directement dans les téléchargements
+          const asset = await MediaLibrary.createAssetAsync(fileUri);
+
+          // Créer un album "HydraCare" s'il n'existe pas déjà
+          const album = await MediaLibrary.getAlbumAsync('HydraCare');
+          if (album === null) {
+            await MediaLibrary.createAlbumAsync('HydraCare', asset, false);
+          } else {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+
           Alert.alert(
-            'Partage non disponible',
-            "Le partage de fichiers n'est pas disponible sur cet appareil."
+            'Exportation réussie',
+            'Le fichier a été enregistré dans la galerie, dossier "HydraCare"'
           );
-          return false;
+          return true;
+        } else {
+          // Option de partage classique
+          const canShare = await Sharing.isAvailableAsync();
+          if (canShare) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/json',
+              dialogTitle: 'Exporter les données HydraCare',
+              UTI: 'public.json',
+            });
+            return true;
+          } else {
+            Alert.alert(
+              'Partage non disponible',
+              "Le partage de fichiers n'est pas disponible sur cet appareil."
+            );
+            return false;
+          }
         }
       }
 
       return true;
     } catch (error) {
       console.error("Erreur lors de l'exportation des données:", error);
+      Alert.alert(
+        "Erreur d'exportation",
+        "Une erreur est survenue lors de l'exportation des données."
+      );
       return false;
     }
   }

@@ -15,7 +15,7 @@ import {
   Moon,
   RefreshCw,
   Upload,
-  Zap
+  Zap,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -48,16 +48,11 @@ export default function SettingsScreen() {
   const [importData, setImportData] = useState<any>(null);
 
   // Fonction pour gérer l'export des données
-  const handleExportData = async () => {
+  const handleExportData = async (directSave: boolean) => {
     setIsExporting(true);
     try {
-      const success = await ImportExportService.exportAllData();
-      if (success) {
-        Alert.alert(
-          'Exportation réussie',
-          "Toutes les données de l'application ont été exportées avec succès."
-        );
-      } else {
+      const success = await ImportExportService.exportAllData(directSave);
+      if (!success) {
         Alert.alert(
           "Échec de l'exportation",
           "Une erreur est survenue lors de l'exportation des données."
@@ -374,10 +369,31 @@ export default function SettingsScreen() {
               { backgroundColor: colors.cardBackground },
             ]}
           >
-            {/* Bouton d'exportation */}
+            {/* Bouton d'exportation avec partage */}
             <TouchableOpacity
               style={styles.dataButton}
-              onPress={handleExportData}
+              onPress={() => handleExportData(false)}
+              disabled={isExporting}
+            >
+              <View style={styles.dataButtonInner}>
+                <Upload size={20} color={colors.accent[500]} />
+                <Text
+                  style={[styles.dataButtonText, { color: colors.accent[500] }]}
+                >
+                  Partager les données
+                </Text>
+              </View>
+              {isExporting && (
+                <ActivityIndicator size="small" color={colors.accent[500]} />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.separator} />
+
+            {/* Nouveau bouton pour l'exportation directe */}
+            <TouchableOpacity
+              style={styles.dataButton}
+              onPress={() => handleExportData(true)}
               disabled={isExporting}
             >
               <View style={styles.dataButtonInner}>
@@ -385,7 +401,7 @@ export default function SettingsScreen() {
                 <Text
                   style={[styles.dataButtonText, { color: colors.accent[500] }]}
                 >
-                  Exporter toutes les données
+                  Enregistrer sur l'appareil
                 </Text>
               </View>
               {isExporting && (
