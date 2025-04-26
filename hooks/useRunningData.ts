@@ -381,49 +381,6 @@ export function useRunningData() {
     }
   };
 
-  // Statistiques générales
-  const getRunningStats = () => {
-    if (sessions.length === 0) return null;
-
-    const totalDistance = sessions.reduce(
-      (sum, session) => sum + (session.distance || 0),
-      0
-    );
-    const totalDuration = sessions.reduce(
-      (sum, session) => sum + (session.duration || 0),
-      0
-    );
-    const totalSessions = sessions.length;
-    const positiveFeeling = sessions.filter(
-      (s) => s.feeling === 'Excellent' || s.feeling === 'Bien'
-    ).length;
-    const positivePercentage = Math.round(
-      (positiveFeeling / totalSessions) * 100
-    );
-
-    // Trouver la course la plus longue
-    const longestRun = [...sessions].sort(
-      (a, b) => (b.distance || 0) - (a.distance || 0)
-    )[0];
-
-    // Trouver la course la plus rapide (avec la plus basse allure)
-    const fastestRun = [...sessions]
-      .filter((s) => s.pace && s.distance && s.distance > 2) // Au moins 2km pour être significatif
-      .sort((a, b) => (a.pace || Infinity) - (b.pace || Infinity))[0];
-
-    return {
-      totalDistance,
-      totalDuration,
-      totalSessions,
-      positivePercentage,
-      longestRun,
-      fastestRun,
-      avgPace: totalDistance > 0 ? totalDuration / totalDistance : 0,
-      avgDistance: totalDistance / totalSessions,
-      avgDuration: totalDuration / totalSessions,
-    };
-  };
-
   return {
     sessions,
     filteredSessions,
@@ -435,7 +392,6 @@ export function useRunningData() {
     applyFilters,
     resetFilters,
     exportToCSV,
-    getRunningStats,
     getFeelingLabel,
   };
 }

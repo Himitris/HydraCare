@@ -192,24 +192,6 @@ export class NotificationService {
     }
   }
 
-  // Notification immédiate de félicitations (conservée pour compatibilité)
-  static async sendCongratulationsNotification() {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🎉 Félicitations !',
-          body: "🏆 Vous avez atteint votre objectif d'hydratation aujourd'hui ! Continuez comme ça ! 💪",
-          data: { type: 'goal_achieved' },
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: null, // Notification immédiate
-      });
-    } catch (error) {
-      console.error('Error sending congratulations notification:', error);
-    }
-  }
-
   // Annuler toutes les notifications planifiées
   static async cancelAllScheduledNotificationsAsync() {
     try {

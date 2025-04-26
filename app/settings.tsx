@@ -1,29 +1,34 @@
 // app/settings.tsx (mise à jour)
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Switch,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import ImportConfirmationModal from '@/components/common/ImportConfirmationModal';
+import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { useIntegration } from '@/context/IntegrationContext';
-import Colors from '@/constants/Colors';
+import { ImportExportService } from '@/services/ImportExportService';
+import { useRouter } from 'expo-router';
 import {
-  ChevronLeft,
-  Bell,
-  Moon,
-  Droplet,
   Activity,
+  Bell,
   CheckSquare,
-  Zap,
+  ChevronLeft,
+  Download,
+  Droplet,
+  Moon,
   RefreshCw,
-  Settings,
+  Upload,
+  Zap
 } from 'lucide-react-native';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -37,6 +42,83 @@ export default function SettingsScreen() {
   } = useIntegration();
 
   const colors = isDarkMode ? Colors.dark : Colors.light;
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
+  const [importData, setImportData] = useState<any>(null);
+
+  // Fonction pour gérer l'export des données
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const success = await ImportExportService.exportAllData();
+      if (success) {
+        Alert.alert(
+          'Exportation réussie',
+          "Toutes les données de l'application ont été exportées avec succès."
+        );
+      } else {
+        Alert.alert(
+          "Échec de l'exportation",
+          "Une erreur est survenue lors de l'exportation des données."
+        );
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'exportation:", error);
+      Alert.alert(
+        'Erreur',
+        "Une erreur inattendue est survenue lors de l'exportation des données."
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Fonction pour gérer l'import des données
+  const handleImportData = async () => {
+    setIsImporting(true);
+    try {
+      // Lire et valider le fichier d'import
+      const data = await ImportExportService.readImportFile();
+      if (data) {
+        // Stocker les données pour une utilisation ultérieure
+        setImportData(data);
+        // Afficher la modale de confirmation
+        setIsConfirmModalVisible(true);
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'importation:", error);
+      Alert.alert(
+        'Erreur',
+        "Une erreur inattendue est survenue lors de l'importation des données."
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Fonction pour confirmer l'import
+  const confirmImport = async () => {
+    if (!importData) return;
+
+    setIsImporting(true);
+    try {
+      const success = await ImportExportService.applyImportData(importData);
+      if (success) {
+        // La modale de réussite est affichée dans applyImportData
+        setIsConfirmModalVisible(false);
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'application des données:", error);
+      Alert.alert(
+        'Erreur',
+        "Une erreur inattendue est survenue lors de l'application des données importées."
+      );
+    } finally {
+      setIsImporting(false);
+      setIsConfirmModalVisible(false);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -280,6 +362,60 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Données et Export */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Données de l'application
+          </Text>
+
+          <View
+            style={[
+              styles.settingCard,
+              { backgroundColor: colors.cardBackground },
+            ]}
+          >
+            {/* Bouton d'exportation */}
+            <TouchableOpacity
+              style={styles.dataButton}
+              onPress={handleExportData}
+              disabled={isExporting}
+            >
+              <View style={styles.dataButtonInner}>
+                <Download size={20} color={colors.accent[500]} />
+                <Text
+                  style={[styles.dataButtonText, { color: colors.accent[500] }]}
+                >
+                  Exporter toutes les données
+                </Text>
+              </View>
+              {isExporting && (
+                <ActivityIndicator size="small" color={colors.accent[500]} />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.separator} />
+
+            {/* Bouton d'importation */}
+            <TouchableOpacity
+              style={styles.dataButton}
+              onPress={handleImportData}
+              disabled={isImporting}
+            >
+              <View style={styles.dataButtonInner}>
+                <Upload size={20} color={colors.accent[500]} />
+                <Text
+                  style={[styles.dataButtonText, { color: colors.accent[500] }]}
+                >
+                  Importer des données
+                </Text>
+              </View>
+              {isImporting && (
+                <ActivityIndicator size="small" color={colors.accent[500]} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* About & Reset */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -312,6 +448,23 @@ export default function SettingsScreen() {
               style={styles.dangerButton}
               onPress={() => {
                 // Logique de réinitialisation...
+                Alert.alert(
+                  'Réinitialiser toutes les données',
+                  'Êtes-vous sûr de vouloir réinitialiser toutes les données ? Cette action ne peut pas être annulée.',
+                  [
+                    {
+                      text: 'Annuler',
+                      style: 'cancel',
+                    },
+                    {
+                      text: 'Réinitialiser',
+                      style: 'destructive',
+                      onPress: () => {
+                        // Logique de réinitialisation ici
+                      },
+                    },
+                  ]
+                );
               }}
             >
               <RefreshCw size={20} color={colors.error[500]} />
@@ -324,6 +477,15 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Modale de confirmation d'importation */}
+      <ImportConfirmationModal
+        visible={isConfirmModalVisible}
+        onCancel={() => setIsConfirmModalVisible(false)}
+        onConfirm={confirmImport}
+        isProcessing={isImporting}
+        colors={colors}
+      />
     </SafeAreaView>
   );
 }
@@ -418,5 +580,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-Medium',
     marginLeft: 8,
+  },
+  dataButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  dataButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dataButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 12,
   },
 });
