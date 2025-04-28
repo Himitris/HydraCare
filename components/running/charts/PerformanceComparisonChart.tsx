@@ -88,7 +88,9 @@ const PerformanceComparisonChart = ({
   }, [sessions]);
 
   // Filter ranges with data
-  const rangesWithData = distanceStats.filter((range) => range.count > 0);
+  const rangesWithData = useMemo(() => {
+    return distanceStats.filter((range) => range.count > 0);
+  }, [distanceStats]);
 
   // Animation when changing metric
   React.useEffect(() => {
@@ -97,46 +99,54 @@ const PerformanceComparisonChart = ({
   }, [metric]);
 
   // Prepare chart data
-  const chartData = {
-    labels: rangesWithData.map((range) => range.shortLabel),
-    datasets: [
-      {
-        data: rangesWithData.map((range) =>
-          metric === 'pace' ? range.avgPace : range.avgDuration
-        ),
-        color: () =>
-          metric === 'pace' ? colors.error[500] : colors.primary[500],
-        strokeWidth: 2,
-      },
-    ],
-    legend: [
-      metric === 'pace' ? 'Allure moyenne (min/km)' : 'Durée moyenne (min)',
-    ],
-  };
+  const chartData = useMemo(
+    () => ({
+      labels: rangesWithData.map((range) => range.shortLabel),
+      datasets: [
+        {
+          data: rangesWithData.map((range) =>
+            metric === 'pace' ? range.avgPace : range.avgDuration
+          ),
+          color: () =>
+            metric === 'pace' ? colors.error[500] : colors.primary[500],
+          strokeWidth: 2,
+        },
+      ],
+      legend: [
+        metric === 'pace' ? 'Allure moyenne (min/km)' : 'Durée moyenne (min)',
+      ],
+    }),
+    [rangesWithData, colors, metric]
+  );
 
   // Chart configuration
-  const chartConfig = {
-    backgroundColor: 'transparent',
-    backgroundGradientFrom: 'transparent',
-    backgroundGradientTo: 'transparent',
-    color: () => (metric === 'pace' ? colors.error[500] : colors.primary[500]),
-    labelColor: () => colors.neutral[500],
-    style: {
-      borderRadius: 16,
-    },
-    propsForDots: {
-      r: '5',
-      strokeWidth: '2',
-      stroke: metric === 'pace' ? colors.error[500] : colors.primary[500],
-    },
-    decimalPlaces: 1,
-    formatYLabel: (value: string) => {
-      if (metric === 'pace') {
-        return formatPace(parseFloat(value));
-      }
-      return value;
-    },
-  };
+  const chartConfig = useMemo(
+    () => ({
+      backgroundColor: 'transparent',
+      backgroundGradientFrom: 'transparent',
+      backgroundGradientTo: 'transparent',
+      color: () =>
+        metric === 'pace' ? colors.error[500] : colors.primary[500],
+      labelColor: () => colors.neutral[500],
+      style: {
+        borderRadius: 16,
+      },
+      propsForDots: {
+        r: '5',
+        strokeWidth: '2',
+        stroke: metric === 'pace' ? colors.error[500] : colors.primary[500],
+      },
+      decimalPlaces: 1,
+      formatYLabel: (value: string) => {
+        if (metric === 'pace') {
+          return formatPace(parseFloat(value));
+        }
+        return value;
+      },
+    }),
+    [colors, metric]
+  );
+
 
   // Animation style
   const containerStyle = useAnimatedStyle(() => ({
@@ -183,7 +193,6 @@ const PerformanceComparisonChart = ({
 
     return result;
   }, [sessions]);
-
 
   if (rangesWithData.length === 0) {
     return (
@@ -433,22 +442,23 @@ const PerformanceComparisonChart = ({
         >
           <Text style={[styles.insightText, { color: colors.text }]}>
             {metric === 'pace'
-              ? 'Votre allure tend à ' +
-                (chartData.datasets[0].data[0] <
-                chartData.datasets[0].data[
-                  chartData.datasets[0].data.length - 1
-                ]
-                  ? 'diminuer'
-                  : 'augmenter') +
-                ' avec la distance, ce qui est ' +
-                (chartData.datasets[0].data[0] <
-                chartData.datasets[0].data[
-                  chartData.datasets[0].data.length - 1
-                ]
-                  ? "normal car l'endurance diminue sur des distances plus longues."
-                  : "inhabituel et indique possiblement que vous êtes plus à l'aise sur des distances plus longues.")
-              : 'La durée de vos sorties augmente naturellement avec la distance parcourue. ' +
-                "Analysez le graphique d'allure pour une meilleure compréhension de vos performances."}
+              ? chartData?.datasets?.[0]?.data?.length >= 2
+                ? (() => {
+                    const first = chartData.datasets[0].data[0];
+                    const last =
+                      chartData.datasets[0].data[
+                        chartData.datasets[0].data.length - 1
+                      ];
+                    return `Votre allure tend à ${
+                      first < last ? 'diminuer' : 'augmenter'
+                    } avec la distance, ce qui est ${
+                      first < last
+                        ? "normal car l'endurance diminue sur des distances plus longues."
+                        : "inhabituel et indique possiblement que vous êtes plus à l'aise sur des distances plus longues."
+                    }`;
+                  })()
+                : "Pas assez de données pour analyser l'évolution de votre allure."
+              : "La durée de vos sorties augmente naturellement avec la distance parcourue. Analysez le graphique d'allure pour une meilleure compréhension de vos performances."}
           </Text>
         </View>
       )}

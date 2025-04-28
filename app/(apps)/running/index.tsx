@@ -20,7 +20,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -147,7 +147,7 @@ export default function RunningScreen() {
   };
 
   // Gérer la confirmation du temps sélectionné
-  const handleTimeConfirm = (h: number, m: number, s: number) => {
+  const handleTimeConfirm = useCallback((h: number, m: number, s: number) => {
     const totalMinutes = timeToMinutes(h, m, s);
 
     if (editingSessionId) {
@@ -166,7 +166,7 @@ export default function RunningScreen() {
     setMinutes(m);
     setSeconds(s);
     setFormattedDuration(formatTime(h, m, s));
-  };
+  }, []);
 
   const getFeelingIcon = (feeling: RunningSession['feeling']) => {
     switch (feeling) {
@@ -207,7 +207,7 @@ export default function RunningScreen() {
     }
   };
 
-  const handleAddSession = () => {
+  const handleAddSession = useCallback(() => {
     if (!newSession.description?.trim()) {
       Alert.alert(
         'Erreur',
@@ -308,23 +308,23 @@ export default function RunningScreen() {
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-  };
+  }, []);
 
-  const openModal = () => {
+  const openModal = useCallback(() => {
     setShowAddModal(true);
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  };
+  }, []);
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
+  const onDateChange = useCallback((event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
     if (selectedDate) {
-      setNewSession({ ...newSession, date: selectedDate });
+      setNewSession((prev) => ({ ...prev, date: selectedDate }));
     }
-  };
+  }, []);
 
   // Fonction pour calculer automatiquement l'allure en minutes par kilomètre
   const calculatePace = (): string => {
@@ -336,7 +336,7 @@ export default function RunningScreen() {
   };
 
   // Handler pour l'édition d'une session
-  const handleEdit = (session: RunningSession) => {
+  const handleEdit = useCallback((session: RunningSession) => {
     // Préremplir le formulaire avec les données existantes
     setNewSession({
       date: new Date(session.date),
@@ -392,20 +392,19 @@ export default function RunningScreen() {
 
     // Ouvrir le modal d'édition
     setShowAddModal(true);
-  };
-
+  }, []);
 
   // Handler pour la suppression d'une session
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     setSelectedSession(sessions.find((s) => s.id === id) || null);
     setShowDeleteModal(true);
-  };
+  }, []);
 
   // Handler pour afficher les détails d'une session
-  const handleShowDetails = (session: RunningSession) => {
+  const handleShowDetails = useCallback((session: RunningSession) => {
     setSelectedSession(session);
     setShowDetailsModal(true);
-  };
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

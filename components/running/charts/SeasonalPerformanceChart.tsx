@@ -1,29 +1,29 @@
 // components/running/charts/SeasonalPerformanceChart.tsx
 import { formatPace } from '@/utils/formatters';
 import {
-    endOfMonth,
-    format,
-    getMonth,
-    getYear,
-    isWithinInterval,
-    startOfMonth,
-    subMonths,
+  endOfMonth,
+  format,
+  getMonth,
+  getYear,
+  isWithinInterval,
+  startOfMonth,
+  subMonths,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { BarChart2, Calendar, Clock, Flame, Zap } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -74,7 +74,6 @@ const SeasonalPerformanceChart = ({
 
     return ranges;
   }, [monthsRange, sessions]);
-
 
   // Calculate chart data
   const chartData = useMemo(() => {
@@ -132,23 +131,31 @@ const SeasonalPerformanceChart = ({
     };
   }, [sessions, monthRanges]);
 
-
   // Calculate insights
   const insights = useMemo(() => {
-    // Find best and worst months
+    // Get the relevant data array based on selected metric
+    const data = chartData?.[metric] ?? [];
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return {
+        bestMonth: null,
+        worstMonth: null,
+        bestValue: '-',
+        worstValue: '-',
+        trend: 0,
+        trendPercent: 0,
+      };
+    }
+
+    // Initialize tracking variables
     let bestMonthIndex = -1;
     let worstMonthIndex = -1;
     let bestValue = metric === 'pace' ? Number.MAX_VALUE : 0;
     let worstValue = metric === 'pace' ? 0 : Number.MAX_VALUE;
 
-    // Get the relevant data array based on selected metric
-    const data = chartData[metric];
-
     data.forEach((value, index) => {
-      // Skip if no data
-      if (value === 0 || value === null) return;
+      if (value == null || value === 0) return; // skip null or 0
 
-      // For pace, lower is better
       if (metric === 'pace') {
         if (value < bestValue) {
           bestValue = value;
@@ -159,7 +166,6 @@ const SeasonalPerformanceChart = ({
           worstMonthIndex = index;
         }
       } else {
-        // For distance and duration, higher is better
         if (value > bestValue) {
           bestValue = value;
           bestMonthIndex = index;
@@ -171,9 +177,9 @@ const SeasonalPerformanceChart = ({
       }
     });
 
-    // Format insights based on metric
-    let bestMetricDisplay = '';
-    let worstMetricDisplay = '';
+    // Format best/worst values
+    let bestMetricDisplay = '-';
+    let worstMetricDisplay = '-';
 
     if (bestMonthIndex !== -1) {
       if (metric === 'distance') {
@@ -192,17 +198,15 @@ const SeasonalPerformanceChart = ({
       }
     }
 
-    // Calculate trend (compared to previous months)
-    const currentMonth = data[data.length - 1];
-    const previousMonth = data[data.length - 2];
+    // Calculate trend safely
+    const currentMonth = data.length >= 1 ? data[data.length - 1] : null;
+    const previousMonth = data.length >= 2 ? data[data.length - 2] : null;
 
     let trend = 0;
-    if (currentMonth && previousMonth) {
+    if (currentMonth != null && previousMonth != null) {
       if (metric === 'pace') {
-        // For pace, decreasing is improving
         trend = previousMonth - currentMonth;
       } else {
-        // For others, increasing is improving
         trend = currentMonth - previousMonth;
       }
     }
@@ -210,11 +214,11 @@ const SeasonalPerformanceChart = ({
     return {
       bestMonth:
         bestMonthIndex !== -1
-          ? monthRanges[bestMonthIndex].fullMonthName
+          ? monthRanges[bestMonthIndex]?.fullMonthName ?? null
           : null,
       worstMonth:
         worstMonthIndex !== -1
-          ? monthRanges[worstMonthIndex].fullMonthName
+          ? monthRanges[worstMonthIndex]?.fullMonthName ?? null
           : null,
       bestValue: bestMetricDisplay,
       worstValue: worstMetricDisplay,
@@ -236,37 +240,39 @@ const SeasonalPerformanceChart = ({
   }, [metric]);
 
   // Prepare chart configuration
-  const chartConfig = {
-    backgroundColor: 'transparent',
-    backgroundGradientFrom: 'transparent',
-    backgroundGradientTo: 'transparent',
-    color: () => {
-      if (metric === 'distance') return colors.secondary[500];
-      if (metric === 'duration') return colors.primary[500];
-      return colors.error[500];
-    },
-    labelColor: () => colors.neutral[500],
-    style: {
-      borderRadius: 16,
-    },
-    barPercentage: 0.7,
-    decimalPlaces: metric === 'pace' ? 1 : 0,
-    // For pace, format Y-axis labels
-    formatYLabel: (value: string) => {
-      if (metric === 'pace') {
-        return formatPace(parseFloat(value));
-      }
-      return value;
-    },
-  };
+  const chartConfig = useMemo(
+    () => ({
+      backgroundColor: 'transparent',
+      backgroundGradientFrom: 'transparent',
+      backgroundGradientTo: 'transparent',
+      color: () => {
+        if (metric === 'distance') return colors.secondary[500];
+        if (metric === 'duration') return colors.primary[500];
+        return colors.error[500];
+      },
+      labelColor: () => colors.neutral[500],
+      style: {
+        borderRadius: 16,
+      },
+      barPercentage: 0.7,
+      decimalPlaces: metric === 'pace' ? 1 : 0,
+      formatYLabel: (value: string) => {
+        if (metric === 'pace') {
+          return formatPace(parseFloat(value));
+        }
+        return value;
+      },
+    }),
+    [colors, metric]
+  );
 
   // Get proper chart data based on selected metric
-  const getChartData = () => {
-    return {
+  const chartDisplayData = useMemo(
+    () => ({
       labels: chartData.labels,
       datasets: [
         {
-          data: chartData[metric],
+          data: chartData[metric] ?? [],
           color: () => {
             if (metric === 'distance') return colors.secondary[500];
             if (metric === 'duration') return colors.primary[500];
@@ -281,8 +287,9 @@ const SeasonalPerformanceChart = ({
           ? 'Durée (min)'
           : 'Allure (min/km)',
       ],
-    };
-  };
+    }),
+    [chartData, colors, metric]
+  );
 
   // Animation style
   const containerStyle = useAnimatedStyle(() => ({
@@ -439,7 +446,7 @@ const SeasonalPerformanceChart = ({
       {chartReady && (
         <View style={styles.chartContainer}>
           <BarChart
-            data={getChartData()}
+            data={chartDisplayData}
             width={width - 64}
             height={220}
             chartConfig={chartConfig}

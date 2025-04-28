@@ -12,7 +12,7 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -47,22 +47,25 @@ const MonthlyHeatmap = ({ onDaySelect }: MonthlyHeatmapProps) => {
   const monthAnimValue = useSharedValue(1);
 
   // Animation when changing months
-  const changeMonth = (delta: number) => {
-    // Start animation - scale down
-    monthAnimValue.value = withSequence(
-      withTiming(0.9, { duration: 150 }),
-      withTiming(1, { duration: 150 })
-    );
+  const changeMonth = useCallback(
+    (delta: number) => {
+      // Start animation - scale down
+      monthAnimValue.value = withSequence(
+        withTiming(0.9, { duration: 150 }),
+        withTiming(1, { duration: 150 })
+      );
 
-    // Update month while animating
-    setTimeout(() => {
-      if (delta > 0) {
-        setCurrentMonth(addMonths(currentMonth, delta));
-      } else {
-        setCurrentMonth(subMonths(currentMonth, Math.abs(delta)));
-      }
-    }, 100);
-  };
+      // Update month while animating
+      setTimeout(() => {
+        if (delta > 0) {
+          setCurrentMonth(addMonths(currentMonth, delta));
+        } else {
+          setCurrentMonth(subMonths(currentMonth, Math.abs(delta)));
+        }
+      }, 100);
+    },
+    [currentMonth]
+  );
 
   const monthContainerStyle = useAnimatedStyle(() => {
     return {
@@ -111,68 +114,77 @@ const MonthlyHeatmap = ({ onDaySelect }: MonthlyHeatmapProps) => {
   }, [currentMonth]);
 
   // Get level of hydration for a day (0-4: 0=none, 1=low, 2=medium, 3=good, 4=excellent)
-  const getHydrationLevel = (date: Date | null) => {
-    if (!date) return -1; // Empty cell
+  const getHydrationLevel = useCallback(
+    (date: Date | null) => {
+      if (!date) return -1; // Empty cell
 
-    const dateKey = `${date.getFullYear()}-${
-      date.getMonth() + 1
-    }-${date.getDate()}`;
-    const dayIntake = history[dateKey] || [];
-    const totalAmount = dayIntake.reduce((sum, item) => sum + item.amount, 0);
-    const percentage = (totalAmount / settings.dailyGoal) * 100;
+      const dateKey = `${date.getFullYear()}-${
+        date.getMonth() + 1
+      }-${date.getDate()}`;
+      const dayIntake = history[dateKey] || [];
+      const totalAmount = dayIntake.reduce((sum, item) => sum + item.amount, 0);
+      const percentage = (totalAmount / settings.dailyGoal) * 100;
 
-    if (totalAmount === 0) return 0;
-    if (percentage < 50) return 1;
-    if (percentage < 80) return 2;
-    if (percentage < 100) return 3;
-    return 4;
-  };
+      if (totalAmount === 0) return 0;
+      if (percentage < 50) return 1;
+      if (percentage < 80) return 2;
+      if (percentage < 100) return 3;
+      return 4;
+    },
+    [history, settings.dailyGoal]
+  );
 
   // Get color for hydration level
-  const getHydrationColor = (level: number) => {
-    switch (level) {
-      case -1:
-        return 'transparent'; // Empty cell
-      case 0:
-        return colors.neutral[200]; // No data
-      case 1:
-        return colors.error[300]; // Low
-      case 2:
-        return colors.warning[300]; // Medium
-      case 3:
-        return colors.secondary[300]; // Good
-      case 4:
-        return colors.primary[500]; // Excellent
-      default:
-        return colors.neutral[200];
-    }
-  };
+  const getHydrationColor = useCallback(
+    (level: number) => {
+      switch (level) {
+        case -1:
+          return 'transparent'; // Empty cell
+        case 0:
+          return colors.neutral[200];
+        case 1:
+          return colors.error[300];
+        case 2:
+          return colors.warning[300];
+        case 3:
+          return colors.secondary[300];
+        case 4:
+          return colors.primary[500];
+        default:
+          return colors.neutral[200];
+      }
+    },
+    [colors]
+  );
 
   // Format day number with special styling for today
-  const formatDay = (date: Date | null) => {
-    if (!date) return '';
+  const formatDay = useCallback(
+    (date: Date | null) => {
+      if (!date) return '';
 
-    const today = new Date();
-    const isToday =
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear();
+      const today = new Date();
+      const isToday =
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
 
-    return (
-      <Text
-        style={[
-          styles.dayNumber,
-          { color: colors.text },
-          isToday && {
-            fontFamily: 'Inter-Bold',
-            color: colors.primary[600],
-          },
-        ]}
-      >
-        {date.getDate()}
-      </Text>
-    );
-  };
+      return (
+        <Text
+          style={[
+            styles.dayNumber,
+            { color: colors.text },
+            isToday && {
+              fontFamily: 'Inter-Bold',
+              color: colors.primary[600],
+            },
+          ]}
+        >
+          {date.getDate()}
+        </Text>
+      );
+    },
+    [colors]
+  );
 
   // Render animated cell that fades in with sequence
   const AnimatedCell = ({
@@ -412,7 +424,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
   },
   calendarGrid: {
-    marginBottom: 16
+    marginBottom: 16,
   },
   calendarRow: {
     flexDirection: 'row',

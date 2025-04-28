@@ -1,17 +1,15 @@
 // components/running/charts/HeartRateChart.tsx
-import React, { useState, useEffect } from 'react';
+import { Heart, TrendingDown, TrendingUp } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Dimensions,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import Colors from '@/constants/Colors';
-import { Activity, Heart, TrendingDown, TrendingUp } from 'lucide-react-native';
 import Animated, {
-  FadeInRight,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -72,26 +70,30 @@ const HeartRateChart = ({
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
-  const chartData = {
-    labels: sortedSessions.map((session, index) => {
-      const date = new Date(session.date);
-      return index % Math.max(1, Math.floor(sortedSessions.length / 5)) === 0
-        ? `${date.getDate()}/${date.getMonth() + 1}`
-        : '';
+  const chartData = useMemo(
+    () => ({
+      labels: sortedSessions.map((session, index) => {
+        const date = new Date(session.date);
+        return index % Math.max(1, Math.floor(sortedSessions.length / 5)) === 0
+          ? `${date.getDate()}/${date.getMonth() + 1}`
+          : '';
+      }),
+      datasets: [
+        {
+          data: sortedSessions.map((session) =>
+            selectedChart === 'avg'
+              ? session.avgHeartRate
+              : session.maxHeartRate
+          ),
+          color: () =>
+            selectedChart === 'avg' ? colors.secondary[500] : colors.error[500],
+          strokeWidth: 2,
+        },
+      ],
+      legend: [selectedChart === 'avg' ? 'FC Moyenne (bpm)' : 'FC Max (bpm)'],
     }),
-    datasets: [
-      {
-        data: sortedSessions.map((session) =>
-          selectedChart === 'avg' ? session.avgHeartRate : session.maxHeartRate
-        ),
-        color: () =>
-          selectedChart === 'avg' ? colors.secondary[500] : colors.error[500],
-        strokeWidth: 2,
-      },
-    ],
-    legend: [selectedChart === 'avg' ? 'FC Moyenne (bpm)' : 'FC Max (bpm)'],
-  };
-
+    [sortedSessions, selectedChart, colors]
+  );
 
   // Calculate min/max and trends for heart rate
   const heartRateData = sortedSessions.map((session) =>
@@ -109,45 +111,48 @@ const HeartRateChart = ({
 
   // Calculate trend (is heart rate going up or down over time)
   let trend = 0;
-  if (heartRateData.length >= 3) {
-    try {
-      const x = Array.from({ length: heartRateData.length }, (_, i) => i);
-      const y = heartRateData;
 
-      const n = x.length;
-      const sumX = x.reduce((a, b) => a + b, 0);
-      const sumY = y.reduce((a, b) => a + b, 0);
-      const sumXY = x.reduce((total, xi, i) => total + xi * y[i], 0);
-      const sumX2 = x.reduce((total, xi) => total + xi * xi, 0);
+  if (
+    heartRateData.length >= 3 &&
+    heartRateData.every((hr) => typeof hr === 'number' && !isNaN(hr))
+  ) {
+    const x = Array.from({ length: heartRateData.length }, (_, i) => i);
+    const y = heartRateData;
 
-      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-      trend = slope;
-    } catch (error) {
-      console.error('Error calculating trend:', error);
-    }
+    const n = x.length;
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((total, xi, i) => total + xi * y[i], 0);
+    const sumX2 = x.reduce((total, xi) => total + xi * xi, 0);
+
+    const denominator = n * sumX2 - sumX * sumX;
+    trend = denominator !== 0 ? (n * sumXY - sumX * sumY) / denominator : 0;
   }
 
   // Chart configuration
-  const chartConfig = {
-    backgroundColor: 'transparent',
-    backgroundGradientFrom: 'transparent',
-    backgroundGradientTo: 'transparent',
-    color: () => colors.text,
-    labelColor: () => colors.neutral[500],
-    propsForDots: {
-      r: '4',
-      strokeWidth: '2',
-      stroke:
-        selectedChart === 'avg' ? colors.secondary[500] : colors.error[500],
-    },
-    propsForBackgroundLines: {
-      stroke: colors.neutral[300],
-      strokeWidth: 1,
-      strokeDasharray: '5, 5',
-    },
-    useShadowColorFromDataset: false,
-    decimalPlaces: 0,
-  };
+  const chartConfig = useMemo(
+    () => ({
+      backgroundColor: 'transparent',
+      backgroundGradientFrom: 'transparent',
+      backgroundGradientTo: 'transparent',
+      color: () => colors.text,
+      labelColor: () => colors.neutral[500],
+      propsForDots: {
+        r: '4',
+        strokeWidth: '2',
+        stroke:
+          selectedChart === 'avg' ? colors.secondary[500] : colors.error[500],
+      },
+      propsForBackgroundLines: {
+        stroke: colors.neutral[300],
+        strokeWidth: 1,
+        strokeDasharray: '5, 5',
+      },
+      useShadowColorFromDataset: false,
+      decimalPlaces: 0,
+    }),
+    [colors, selectedChart]
+  );
 
   // Animation styles
   const cardStyle = useAnimatedStyle(() => ({

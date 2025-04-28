@@ -1,18 +1,18 @@
 // components/common/CustomTabBar.tsx
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { usePathname, useRouter } from 'expo-router';
+import { Home } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  View,
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  Platform,
   Animated,
   Dimensions,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
-import { Home } from 'lucide-react-native';
-import { useAppContext } from '@/context/AppContext';
-import Colors from '@/constants/Colors';
 
 interface TabItem {
   name: string;
@@ -41,7 +41,6 @@ export default function CustomTabBar({
   const colors = isDarkMode ? Colors.dark : Colors.light;
 
   // Références aux animations pour éviter les recréations
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   const activeTabIndicatorWidth = useRef(new Animated.Value(0)).current;
   const activeTabIndicatorPosition = useRef(new Animated.Value(0)).current;
 
@@ -87,7 +86,7 @@ export default function CustomTabBar({
       }
     }
 
-    // Si aucun onglet trouvé à gauche, vérifier à droite
+    // Vérifier les onglets de droite
     if (foundIndex === -1) {
       for (let i = 0; i < rightTabs.length; i++) {
         if (isActive(rightTabs[i].name)) {
@@ -98,39 +97,14 @@ export default function CustomTabBar({
       }
     }
 
-    // Cas par défaut si nous sommes sur running
-    if (foundIndex === -1 && pathname.includes('running')) {
+    // ✅ Correction ici : si rien trouvé, on revient au premier onglet
+    if (foundIndex === -1) {
       foundIndex = 0;
       onLeftSide = true;
     }
 
     return { activeTabIndex: foundIndex, isLeftSide: onLeftSide };
   }, [leftTabs, rightTabs, isActive, pathname]);
-
-  // Effet pulsant pour le bouton d'accueil (optimisé avec moins de recréations)
-  useEffect(() => {
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    pulseAnimation.start();
-
-    return () => {
-      pulseAnimation.stop();
-      scaleAnim.setValue(1);
-    };
-  }, []); // Pas besoin de dépendance ici, car scaleAnim est une référence stable
 
   // Animation de l'indicateur d'onglet actif
   useEffect(() => {
@@ -185,23 +159,9 @@ export default function CustomTabBar({
     [baseRoute, router]
   );
 
-  // Navigation vers l'accueil
   const navigateToHome = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.8,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      router.push('/' as any);
-    });
-  }, [router, scaleAnim]);
+    router.push('/' as any);
+  }, [router]);
 
   // Mémoriser le rendu des onglets pour éviter les recréations
   const renderTab = useCallback(
@@ -263,33 +223,6 @@ export default function CustomTabBar({
     [colors.cardBackground]
   );
 
-  // Styles d'animation mémorisés
-  const homeButtonGlowStyle = useMemo(
-    () => [
-      styles.homeButtonGlow,
-      {
-        backgroundColor: colors.accent[300],
-        transform: [{ scale: scaleAnim }],
-      },
-    ],
-    [colors.accent, scaleAnim]
-  );
-
-  const homeButtonContainerStyle = useMemo(
-    () => [
-      styles.homeButtonContainer,
-      {
-        transform: [{ scale: scaleAnim }],
-      },
-    ],
-    [scaleAnim]
-  );
-
-  const homeButtonStyle = useMemo(
-    () => [styles.homeButton, { backgroundColor: colors.accent[500] }],
-    [colors.accent]
-  );
-
   // Mémoriser les onglets rendus pour éviter les recréations
   const leftTabComponents = useMemo(
     () => leftTabs.map((tab) => renderTab(tab, true)),
@@ -311,12 +244,12 @@ export default function CustomTabBar({
 
       {/* Bouton d'accueil central avec animation */}
       <View style={styles.homeButtonWrapper}>
-        <Animated.View style={homeButtonGlowStyle} />
-        <Animated.View style={homeButtonContainerStyle}>
-          <TouchableOpacity style={homeButtonStyle} onPress={navigateToHome}>
-            <Home size={28} color="#FFF" />
-          </TouchableOpacity>
-        </Animated.View>
+        <TouchableOpacity
+          style={[styles.homeButton, { backgroundColor: colors.accent[500] }]}
+          onPress={navigateToHome}
+        >
+          <Home size={28} color="#FFF" />
+        </TouchableOpacity>
       </View>
 
       {/* Tabs de droite */}
@@ -359,13 +292,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
-  homeButtonWrapper: {
-    position: 'relative',
-    width: 70,
-    height: 70,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   homeButtonGlow: {
     position: 'absolute',
     width: 70,
@@ -379,17 +305,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  homeButtonWrapper: {
+    width: 70,
+    height: 70,
+    marginTop: -20,
+    borderRadius: 35,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+
   homeButton: {
     width: 60,
     height: 60,
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 20 : 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
