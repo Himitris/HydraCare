@@ -15,6 +15,7 @@ import {
   Frown,
   Meh,
   Plus,
+  RefreshCw,
   Smile,
   Trash2,
   X,
@@ -51,14 +52,14 @@ interface RunningSession {
   date: Date;
   feeling: 'great' | 'good' | 'average' | 'bad';
   description: string;
-  // Nouveaux champs optionnels pour les performances
-  distance?: number; // Distance en kilomètres
-  duration?: number; // Durée en minutes
-  pace?: number; // Allure en minutes par kilomètre
-  calories?: number; // Calories brûlées (estimation)
-  elevationGain?: number; // Dénivelé positif en mètres
-  maxHeartRate?: number; // Fréquence cardiaque maximale en bpm
-  avgHeartRate?: number; // Fréquence cardiaque moyenne en bpm
+  type: 'run' | 'rest'; // Nouveau champ pour distinguer les types de sessions
+  distance?: number;
+  duration?: number;
+  pace?: number;
+  calories?: number;
+  elevationGain?: number;
+  maxHeartRate?: number;
+  avgHeartRate?: number;
 }
 
 export default function RunningScreen() {
@@ -87,6 +88,8 @@ export default function RunningScreen() {
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(30);
   const [seconds, setSeconds] = useState(0);
+
+  const [sessionType, setSessionType] = useState<'run' | 'rest'>('run');
 
   // Load sessions from AsyncStorage when the component mounts
   useEffect(() => {
@@ -208,20 +211,20 @@ export default function RunningScreen() {
     if (!newSession.description?.trim()) {
       Alert.alert(
         'Erreur',
-        'Veuillez ajouter une description pour votre sortie'
+        'Veuillez ajouter une description pour votre session'
       );
       return;
     }
 
-    // Calculer automatiquement l'allure si on a la distance et la durée
+    // Calculer automatiquement l'allure si on a la distance et la durée (pour les sorties uniquement)
     let pace = newSession.pace;
     if (
+      sessionType === 'run' &&
       !pace &&
       newSession.distance &&
       newSession.duration &&
       newSession.distance > 0
     ) {
-      // Stocke l'allure en minutes décimales (5.75 pour 5:45)
       pace = newSession.duration / newSession.distance;
     }
 
@@ -234,23 +237,35 @@ export default function RunningScreen() {
             date: newSession.date || new Date(),
             feeling: newSession.feeling || 'good',
             description: newSession.description?.trim() || '',
-            // Ajouter les champs de performance
-            distance: newSession.distance,
-            duration: newSession.duration,
-            pace: pace,
-            calories: newSession.calories,
-            elevationGain: newSession.elevationGain,
-            avgHeartRate: newSession.avgHeartRate,
-            maxHeartRate: newSession.maxHeartRate,
+            type: sessionType, // Ajout du type
+            // Ajouter les champs de performance seulement si c'est une sortie
+            ...(sessionType === 'run'
+              ? {
+                  distance: newSession.distance,
+                  duration: newSession.duration,
+                  pace: pace,
+                  calories: newSession.calories,
+                  elevationGain: newSession.elevationGain,
+                  avgHeartRate: newSession.avgHeartRate,
+                  maxHeartRate: newSession.maxHeartRate,
+                }
+              : {
+                  // Réinitialiser ces champs pour les jours de repos
+                  distance: undefined,
+                  duration: undefined,
+                  pace: undefined,
+                  calories: undefined,
+                  elevationGain: undefined,
+                  avgHeartRate: undefined,
+                  maxHeartRate: undefined,
+                }),
           };
         }
         return session;
       });
 
       setSessions(updatedSessions);
-      saveSessions(updatedSessions); // Sauvegarder les sessions mises à jour
-
-      // Réinitialiser le mode édition
+      saveSessions(updatedSessions);
       setEditingSessionId(null);
     } else {
       // Mode création
@@ -259,24 +274,30 @@ export default function RunningScreen() {
         date: newSession.date || new Date(),
         feeling: newSession.feeling || 'good',
         description: newSession.description.trim(),
-        // Ajouter les champs de performance
-        distance: newSession.distance,
-        duration: newSession.duration,
-        pace: pace,
-        calories: newSession.calories,
-        elevationGain: newSession.elevationGain,
-        avgHeartRate: newSession.avgHeartRate,
-        maxHeartRate: newSession.maxHeartRate,
+        type: sessionType, // Ajout du type
+        // Ajouter les champs de performance uniquement pour les sorties
+        ...(sessionType === 'run'
+          ? {
+              distance: newSession.distance,
+              duration: newSession.duration,
+              pace: pace,
+              calories: newSession.calories,
+              elevationGain: newSession.elevationGain,
+              avgHeartRate: newSession.avgHeartRate,
+              maxHeartRate: newSession.maxHeartRate,
+            }
+          : {}),
       };
 
       const updatedSessions = [session, ...sessions];
       setSessions(updatedSessions);
-      saveSessions(updatedSessions); // Sauvegarder les sessions mises à jour
+      saveSessions(updatedSessions);
     }
 
     // Fermer le modal et réinitialiser le formulaire
     setShowAddModal(false);
     setNewSession({ date: new Date(), feeling: 'good', description: '' });
+    setSessionType('run'); // Réinitialiser le type de session
     setShowPerformanceFields(false);
     setFormattedDuration('00h 30m 00s');
     setHours(0);
@@ -316,7 +337,7 @@ export default function RunningScreen() {
 
   // Handler pour l'édition d'une session
   const handleEdit = (session: RunningSession) => {
-    // Préremplir le formulaire avec les données existantes, incluant les performances
+    // Préremplir le formulaire avec les données existantes
     setNewSession({
       date: new Date(session.date),
       feeling: session.feeling,
@@ -329,6 +350,9 @@ export default function RunningScreen() {
       avgHeartRate: session.avgHeartRate,
       maxHeartRate: session.maxHeartRate,
     });
+
+    // Définir le type de session
+    setSessionType(session.type || 'run');
 
     // Initialiser le texte formaté si distance existe
     if (session.distance) {
@@ -349,15 +373,16 @@ export default function RunningScreen() {
       setFormattedDuration('00h 30m 00s');
     }
 
-    // Si des détails de performance existent, afficher la section
+    // Si des détails de performance existent et c'est une sortie, afficher la section
     if (
-      session.distance ||
-      session.duration ||
-      session.pace ||
-      session.calories ||
-      session.elevationGain ||
-      session.avgHeartRate ||
-      session.maxHeartRate
+      session.type === 'run' &&
+      (session.distance ||
+        session.duration ||
+        session.pace ||
+        session.calories ||
+        session.elevationGain ||
+        session.avgHeartRate ||
+        session.maxHeartRate)
     ) {
       setShowPerformanceFields(true);
     }
@@ -368,6 +393,7 @@ export default function RunningScreen() {
     // Ouvrir le modal d'édition
     setShowAddModal(true);
   };
+
 
   // Handler pour la suppression d'une session
   const handleDelete = (id: string) => {
@@ -469,7 +495,9 @@ export default function RunningScreen() {
             >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {editingSessionId ? 'Modifier la sortie' : 'Nouvelle sortie'}
+                  {editingSessionId
+                    ? 'Modifier la session'
+                    : 'Nouvelle session'}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -515,6 +543,82 @@ export default function RunningScreen() {
                       })}
                     </Text>
                   </TouchableOpacity>
+                </View>
+
+                {/* Type de session */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Type de session
+                  </Text>
+                  <View style={styles.sessionTypeContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.sessionTypeButton,
+                        sessionType === 'run' && {
+                          backgroundColor: colors.secondary[100],
+                          borderColor: colors.secondary[500],
+                        },
+                        { borderColor: colors.neutral[200] },
+                      ]}
+                      onPress={() => setSessionType('run')}
+                    >
+                      <Activity
+                        size={20}
+                        color={
+                          sessionType === 'run'
+                            ? colors.secondary[500]
+                            : colors.neutral[500]
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.sessionTypeText,
+                          {
+                            color:
+                              sessionType === 'run'
+                                ? colors.secondary[500]
+                                : colors.neutral[500],
+                          },
+                        ]}
+                      >
+                        Sortie
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.sessionTypeButton,
+                        sessionType === 'rest' && {
+                          backgroundColor: colors.success[100],
+                          borderColor: colors.success[500],
+                        },
+                        { borderColor: colors.neutral[200] },
+                      ]}
+                      onPress={() => setSessionType('rest')}
+                    >
+                      <RefreshCw
+                        size={20}
+                        color={
+                          sessionType === 'rest'
+                            ? colors.success[500]
+                            : colors.neutral[500]
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.sessionTypeText,
+                          {
+                            color:
+                              sessionType === 'rest'
+                                ? colors.success[500]
+                                : colors.neutral[500],
+                          },
+                        ]}
+                      >
+                        Repos
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Feeling Selector */}
@@ -568,7 +672,7 @@ export default function RunningScreen() {
                         color: colors.text,
                       },
                     ]}
-                    placeholder="Comment s'est passée votre sortie ?"
+                    placeholder="Comment s'est passée votre session ?"
                     placeholderTextColor={colors.neutral[500]}
                     multiline
                     value={newSession.description}
@@ -579,29 +683,31 @@ export default function RunningScreen() {
                 </View>
 
                 {/* Performance Details Toggle */}
-                <TouchableOpacity
-                  style={styles.collapsibleHeader}
-                  onPress={() =>
-                    setShowPerformanceFields(!showPerformanceFields)
-                  }
-                >
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Détails de performance
-                  </Text>
-                  <ChevronDown
-                    size={20}
-                    color={colors.neutral[500]}
-                    style={{
-                      transform: showPerformanceFields
-                        ? [{ rotate: '180deg' }]
-                        : [{ rotate: '0deg' }],
-                      marginLeft: 8,
-                    }}
-                  />
-                </TouchableOpacity>
+                {sessionType === 'run' && (
+                  <TouchableOpacity
+                    style={styles.collapsibleHeader}
+                    onPress={() =>
+                      setShowPerformanceFields(!showPerformanceFields)
+                    }
+                  >
+                    <Text style={[styles.label, { color: colors.text }]}>
+                      Détails de performance
+                    </Text>
+                    <ChevronDown
+                      size={20}
+                      color={colors.neutral[500]}
+                      style={{
+                        transform: showPerformanceFields
+                          ? [{ rotate: '180deg' }]
+                          : [{ rotate: '0deg' }],
+                        marginLeft: 8,
+                      }}
+                    />
+                  </TouchableOpacity>
+                )}
 
                 {/* Collapsible Performance Fields Content */}
-                {showPerformanceFields && (
+                {showPerformanceFields && sessionType === 'run' && (
                   <View style={styles.performanceFields}>
                     {/* Durée avec sélecteur de temps amélioré */}
                     <View style={styles.inputGroup}>
@@ -844,6 +950,33 @@ export default function RunningScreen() {
                   </View>
                 )}
 
+                {/* Champs spécifiques pour le repos */}
+                {sessionType === 'rest' && (
+                  <View style={styles.restFields}>
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.label, { color: colors.text }]}>
+                        Type de repos
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.textInput,
+                          {
+                            backgroundColor: colors.background,
+                            borderColor: colors.neutral[300],
+                            color: colors.text,
+                          },
+                        ]}
+                        placeholder="Ex: Récupération active, étirements, ..."
+                        placeholderTextColor={colors.neutral[400]}
+                        value={newSession.description}
+                        onChangeText={(text) =>
+                          setNewSession({ ...newSession, description: text })
+                        }
+                      />
+                    </View>
+                  </View>
+                )}
+
                 {/* Save Button */}
                 <TouchableOpacity
                   style={[
@@ -855,7 +988,7 @@ export default function RunningScreen() {
                   <Text style={styles.saveButtonText}>
                     {editingSessionId
                       ? 'Enregistrer les modifications'
-                      : 'Ajouter la sortie'}
+                      : 'Ajouter la session'}
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -909,7 +1042,7 @@ export default function RunningScreen() {
             >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  Détails de la sortie
+                  Détails de la session
                 </Text>
               </View>
 
@@ -932,6 +1065,53 @@ export default function RunningScreen() {
                         locale: fr,
                       })}
                   </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text
+                    style={[
+                      styles.detailsLabel,
+                      { color: colors.neutral[500] },
+                    ]}
+                  >
+                    Type
+                  </Text>
+                  <View style={styles.typeContainer}>
+                    {selectedSession?.type === 'rest' ? (
+                      <View
+                        style={[
+                          styles.typeBadge,
+                          { backgroundColor: colors.success[100] },
+                        ]}
+                      >
+                        <RefreshCw size={16} color={colors.success[500]} />
+                        <Text
+                          style={[
+                            styles.typeText,
+                            { color: colors.success[500] },
+                          ]}
+                        >
+                          Jour de repos
+                        </Text>
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.typeBadge,
+                          { backgroundColor: colors.secondary[100] },
+                        ]}
+                      >
+                        <Activity size={16} color={colors.secondary[500]} />
+                        <Text
+                          style={[
+                            styles.typeText,
+                            { color: colors.secondary[500] },
+                          ]}
+                        >
+                          Sortie course
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
 
                 <View style={styles.detailsRow}>
@@ -1234,8 +1414,8 @@ export default function RunningScreen() {
                     },
                   ]}
                 >
-                  Êtes-vous sûr de vouloir supprimer cette sortie ? Cette action
-                  est irréversible.
+                  Êtes-vous sûr de vouloir supprimer cette session ? Cette
+                  action est irréversible.
                 </Text>
 
                 <View style={styles.deleteButtonsContainer}>
@@ -1606,5 +1786,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Inter-Regular',
     marginLeft: 8,
+  },
+  sessionTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  sessionTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginHorizontal: 5,
+  },
+  sessionTypeText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 8,
+  },
+  restFields: {
+    marginBottom: 16,
+  },
+  typeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  typeText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 6,
   },
 });

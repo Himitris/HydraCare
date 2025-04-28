@@ -1,8 +1,10 @@
 // components/running/SessionCard.tsx
 import Colors from '@/constants/Colors';
+import { useAppContext } from '@/context/AppContext';
+import { formatPace } from '@/utils/formatters';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Edit2, Frown, Meh, Smile, Trash2 } from 'lucide-react-native';
+import { Edit2, Frown, Meh, RefreshCw, Smile, Trash2 } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -12,6 +14,7 @@ interface RunningSession {
   date: Date;
   feeling: 'great' | 'good' | 'average' | 'bad';
   description: string;
+  type: 'run' | 'rest';
   distance?: number;
   duration?: number;
   pace?: number;
@@ -80,7 +83,11 @@ export default function SessionCard({
   return (
     <Animated.View key={session.id} entering={FadeInDown.delay(index * 100)}>
       <TouchableOpacity
-        style={[styles.sessionCard, { backgroundColor: colors.cardBackground }]}
+        style={[
+          styles.sessionCard,
+          { backgroundColor: colors.cardBackground },
+          session.type === 'rest' && styles.restSessionCard,
+        ]}
         activeOpacity={0.8}
         onPress={() => onPress(session)}
       >
@@ -97,11 +104,31 @@ export default function SessionCard({
               {getFeelingIcon(session.feeling)}
             </View>
             <View style={styles.sessionTextInfo}>
-              <Text style={[styles.sessionDateText, { color: colors.text }]}>
-                {format(new Date(session.date), 'EEEE d MMMM', {
-                  locale: fr,
-                })}
-              </Text>
+              <View style={styles.sessionDateRow}>
+                <Text style={[styles.sessionDateText, { color: colors.text }]}>
+                  {format(new Date(session.date), 'EEEE d MMMM', {
+                    locale: fr,
+                  })}
+                </Text>
+                {session.type === 'rest' && (
+                  <View
+                    style={[
+                      styles.restBadge,
+                      { backgroundColor: colors.success[100] },
+                    ]}
+                  >
+                    <RefreshCw size={14} color={colors.success[500]} />
+                    <Text
+                      style={[
+                        styles.restBadgeText,
+                        { color: colors.success[500] },
+                      ]}
+                    >
+                      Repos
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text
                 style={[
                   styles.feelingText,
@@ -134,6 +161,17 @@ export default function SessionCard({
         >
           {session.description}
         </Text>
+
+        {/* Afficher les informations de performance uniquement pour les sorties */}
+        {session.type === 'run' && session.distance && (
+          <View style={styles.performanceInfo}>
+            <Text style={[styles.performanceText, { color: colors.text }]}>
+              {session.distance.toFixed(1)} km
+              {session.duration && ` • ${Math.round(session.duration)} min`}
+              {session.pace && ` • ${formatPace(session.pace)}/km`}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -191,6 +229,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     lineHeight: 20,
+  },
+  restSessionCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "black",
+  },
+  sessionDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  restBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  restBadgeText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 4,
+  },
+  performanceInfo: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  performanceText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
   },
 });
 

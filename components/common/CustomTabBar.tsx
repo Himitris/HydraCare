@@ -1,5 +1,5 @@
 // components/common/CustomTabBar.tsx
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -39,13 +39,75 @@ export default function CustomTabBar({
   const pathname = usePathname();
   const { isDarkMode } = useAppContext();
   const colors = isDarkMode ? Colors.dark : Colors.light;
+
+  // Références aux animations pour éviter les recréations
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  
-  // Animation pour l'indicateur d'onglet actif
   const activeTabIndicatorWidth = useRef(new Animated.Value(0)).current;
   const activeTabIndicatorPosition = useRef(new Animated.Value(0)).current;
 
-  // Effet pulsant pour le bouton d'accueil
+  // Mémoriser la division des onglets pour éviter les recalculs
+  const { leftTabs, rightTabs } = useMemo(() => {
+    const leftSide = tabs.slice(0, Math.ceil(tabs.length / 2));
+    const rightSide = tabs.slice(Math.ceil(tabs.length / 2));
+    return { leftTabs: leftSide, rightTabs: rightSide };
+  }, [tabs]);
+
+  // Mémoriser la largeur d'un onglet pour éviter les recalculs
+  const tabWidth = useMemo(() => {
+    return (width - 70) / tabs.length;
+  }, [width, tabs.length]);
+
+  // Fonction optimisée pour vérifier si un onglet est actif
+  const isActive = useCallback(
+    (tabName: string) => {
+      if (tabName === 'index') {
+        return pathname === baseRoute || pathname === `${baseRoute}/index`;
+      }
+
+      return (
+        pathname === `${baseRoute}/${tabName}` ||
+        pathname.endsWith(`/${tabName}`) ||
+        pathname === `/${tabName}`
+      );
+    },
+    [pathname, baseRoute]
+  );
+
+  // Trouver l'index de l'onglet actif (mémorisé pour éviter les recalculs)
+  const { activeTabIndex, isLeftSide } = useMemo(() => {
+    let foundIndex = -1;
+    let onLeftSide = true;
+
+    // Vérifier les onglets de gauche
+    for (let i = 0; i < leftTabs.length; i++) {
+      if (isActive(leftTabs[i].name)) {
+        foundIndex = i;
+        onLeftSide = true;
+        break;
+      }
+    }
+
+    // Si aucun onglet trouvé à gauche, vérifier à droite
+    if (foundIndex === -1) {
+      for (let i = 0; i < rightTabs.length; i++) {
+        if (isActive(rightTabs[i].name)) {
+          foundIndex = i;
+          onLeftSide = false;
+          break;
+        }
+      }
+    }
+
+    // Cas par défaut si nous sommes sur running
+    if (foundIndex === -1 && pathname.includes('running')) {
+      foundIndex = 0;
+      onLeftSide = true;
+    }
+
+    return { activeTabIndex: foundIndex, isLeftSide: onLeftSide };
+  }, [leftTabs, rightTabs, isActive, pathname]);
+
+  // Effet pulsant pour le bouton d'accueil (optimisé avec moins de recréations)
   useEffect(() => {
     const pulseAnimation = Animated.loop(
       Animated.sequence([
@@ -66,72 +128,55 @@ export default function CustomTabBar({
 
     return () => {
       pulseAnimation.stop();
-      // Assurer le nettoyage complet
       scaleAnim.setValue(1);
     };
-  }, [scaleAnim]);
+  }, []); // Pas besoin de dépendance ici, car scaleAnim est une référence stable
 
-  // Diviser les tabs en deux groupes
-  const leftTabs = tabs.slice(0, Math.ceil(tabs.length / 2));
-  const rightTabs = tabs.slice(Math.ceil(tabs.length / 2));
-
-  const isActive = useCallback(
-    (tabName: string) => {
-      if (tabName === 'index') {
-        return pathname === `${baseRoute}` || pathname === `${baseRoute}/index`;
-      }
-      return pathname.includes(`${baseRoute}/${tabName}`);
-    },
-    [pathname, baseRoute]
-  );
-
-  // Mettre à jour l'indicateur d'onglet actif
+  // Animation de l'indicateur d'onglet actif
   useEffect(() => {
-    // Trouver l'index de l'onglet actif
-    let activeTabIndex = -1;
-    let isLeftSide = true;
-    
-    for (let i = 0; i < leftTabs.length; i++) {
-      if (isActive(leftTabs[i].name)) {
-        activeTabIndex = i;
-        isLeftSide = true;
-        break;
-      }
-    }
-    
-    if (activeTabIndex === -1) {
-      for (let i = 0; i < rightTabs.length; i++) {
-        if (isActive(rightTabs[i].name)) {
-          activeTabIndex = i;
-          isLeftSide = false;
-          break;
-        }
-      }
-    }
-    
     if (activeTabIndex !== -1) {
-      // Calculer la position et la largeur de l'indicateur
-      const tabWidth = (width - 70) / tabs.length;
-      const position = isLeftSide 
-        ? activeTabIndex * tabWidth 
-        : (leftTabs.length + activeTabIndex) * tabWidth + 70; // +70 pour l'espace du bouton d'accueil
-      
-      // Animer l'indicateur
+      // Calculer la position de l'indicateur
+      const position = isLeftSide
+        ? activeTabIndex * tabWidth
+        : (leftTabs.length + activeTabIndex) * tabWidth + 70;
+
+      // Animer l'indicateur avec des configurations optimisées
       Animated.parallel([
         Animated.spring(activeTabIndicatorWidth, {
-          toValue: tabWidth * 0.6, // 60% de la largeur de l'onglet
+          toValue: tabWidth * 0.6,
           friction: 8,
           useNativeDriver: false,
+          // Réduire les calculs intermédiaires
+          restDisplacementThreshold: 0.01,
+          restSpeedThreshold: 0.01,
         }),
         Animated.spring(activeTabIndicatorPosition, {
-          toValue: position + (tabWidth * 0.2), // Centrer l'indicateur
+          toValue: position + tabWidth * 0.2,
           friction: 8,
           useNativeDriver: false,
-        })
+          // Réduire les calculs intermédiaires
+          restDisplacementThreshold: 0.01,
+          restSpeedThreshold: 0.01,
+        }),
+      ]).start();
+    } else {
+      // Masquer l'indicateur si aucun onglet n'est actif
+      Animated.parallel([
+        Animated.timing(activeTabIndicatorWidth, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+        Animated.timing(activeTabIndicatorPosition, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: false,
+        }),
       ]).start();
     }
-  }, [pathname, leftTabs, rightTabs, isActive]);
+  }, [activeTabIndex, isLeftSide, tabWidth, leftTabs.length]);
 
+  // Navigation optimisée vers un onglet
   const navigateToTab = useCallback(
     (tabName: string) => {
       const path = tabName === 'index' ? baseRoute : `${baseRoute}/${tabName}`;
@@ -140,9 +185,8 @@ export default function CustomTabBar({
     [baseRoute, router]
   );
 
-  // Animation et navigation vers l'accueil
-  const navigateToHome = () => {
-    // Effet de pression
+  // Navigation vers l'accueil
+  const navigateToHome = useCallback(() => {
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 0.8,
@@ -155,101 +199,133 @@ export default function CustomTabBar({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Naviguer vers l'accueil
-      router.push('/' as any); // Utilisez 'as any' pour contourner l'erreur de type
+      router.push('/' as any);
     });
-  };
+  }, [router, scaleAnim]);
 
-  // Rendu d'un tab individuel avec indicateur d'onglet actif
-  const renderTab = (tab: TabItem, isLeft: boolean) => {
-    const active = isActive(tab.name);
-    return (
-      <TouchableOpacity
-        key={`${isLeft ? 'left' : 'right'}-${tab.name}`}
-        style={styles.tabItem}
-        onPress={() => navigateToTab(tab.name)}
-      >
-        <View
-          style={[
-            styles.tabContent,
-            active && {
-              backgroundColor: `${activeColor}15`, // Fond légèrement coloré pour l'onglet actif
-            },
-          ]}
+  // Mémoriser le rendu des onglets pour éviter les recréations
+  const renderTab = useCallback(
+    (tab: TabItem, isLeft: boolean) => {
+      const active = isActive(tab.name);
+      return (
+        <TouchableOpacity
+          key={`${isLeft ? 'left' : 'right'}-${tab.name}`}
+          style={styles.tabItem}
+          onPress={() => navigateToTab(tab.name)}
         >
-          {tab.icon({
-            color: active ? activeColor : inactiveColor,
-            size: 24,
-          })}
-          <Text
+          <View
             style={[
-              styles.tabLabel,
-              {
-                color: active ? activeColor : inactiveColor,
-                fontFamily: active ? 'Inter-SemiBold' : 'Inter-Medium', // Police plus épaisse pour l'onglet actif
+              styles.tabContent,
+              active && {
+                backgroundColor: `${activeColor}15`,
               },
             ]}
           >
-            {tab.label}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+            {tab.icon({
+              color: active ? activeColor : inactiveColor,
+              size: 24,
+            })}
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: active ? activeColor : inactiveColor,
+                  fontFamily: active ? 'Inter-SemiBold' : 'Inter-Medium',
+                },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [isActive, navigateToTab, activeColor, inactiveColor]
+  );
 
-  // Styles de l'indicateur d'onglet actif
-  const indicatorStyle = {
-    position: 'absolute',
-    top: 4,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: activeColor,
-    width: activeTabIndicatorWidth,
-    left: activeTabIndicatorPosition,
-  };
+  // Style mémorisé de l'indicateur pour éviter les recréations
+  const indicatorStyle = useMemo(
+    () => ({
+      position: 'absolute',
+      top: 4,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: activeColor,
+      width: activeTabIndicatorWidth,
+      left: activeTabIndicatorPosition,
+    }),
+    [activeColor, activeTabIndicatorWidth, activeTabIndicatorPosition]
+  );
+
+  // Style mémorisé du conteneur pour éviter les recréations
+  const tabBarStyle = useMemo(
+    () => [styles.tabBar, { backgroundColor: colors.cardBackground }],
+    [colors.cardBackground]
+  );
+
+  // Styles d'animation mémorisés
+  const homeButtonGlowStyle = useMemo(
+    () => [
+      styles.homeButtonGlow,
+      {
+        backgroundColor: colors.accent[300],
+        transform: [{ scale: scaleAnim }],
+      },
+    ],
+    [colors.accent, scaleAnim]
+  );
+
+  const homeButtonContainerStyle = useMemo(
+    () => [
+      styles.homeButtonContainer,
+      {
+        transform: [{ scale: scaleAnim }],
+      },
+    ],
+    [scaleAnim]
+  );
+
+  const homeButtonStyle = useMemo(
+    () => [styles.homeButton, { backgroundColor: colors.accent[500] }],
+    [colors.accent]
+  );
+
+  // Mémoriser les onglets rendus pour éviter les recréations
+  const leftTabComponents = useMemo(
+    () => leftTabs.map((tab) => renderTab(tab, true)),
+    [leftTabs, renderTab]
+  );
+
+  const rightTabComponents = useMemo(
+    () => rightTabs.map((tab) => renderTab(tab, false)),
+    [rightTabs, renderTab]
+  );
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: colors.cardBackground }]}>
+    <View style={tabBarStyle}>
       {/* Indicateur d'onglet actif */}
       <Animated.View style={indicatorStyle as any} />
-      
+
       {/* Tabs de gauche */}
-      {leftTabs.map((tab) => renderTab(tab, true))}
+      {leftTabComponents}
 
       {/* Bouton d'accueil central avec animation */}
       <View style={styles.homeButtonWrapper}>
-        <Animated.View
-          style={[
-            styles.homeButtonGlow,
-            {
-              backgroundColor: colors.accent[300],
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.homeButtonContainer,
-            {
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.homeButton, { backgroundColor: colors.accent[500] }]}
-            onPress={navigateToHome}
-          >
+        <Animated.View style={homeButtonGlowStyle} />
+        <Animated.View style={homeButtonContainerStyle}>
+          <TouchableOpacity style={homeButtonStyle} onPress={navigateToHome}>
             <Home size={28} color="#FFF" />
           </TouchableOpacity>
         </Animated.View>
       </View>
 
       {/* Tabs de droite */}
-      {rightTabs.map((tab) => renderTab(tab, false))}
+      {rightTabComponents}
     </View>
   );
 }
 
+// Styles extraits en dehors du composant pour éviter les recréations
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',

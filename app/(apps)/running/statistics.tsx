@@ -1,4 +1,3 @@
-// app/(apps)/running/statistics.tsx
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { useRunningData } from '@/hooks/useRunningData';
@@ -11,10 +10,11 @@ import {
   Calendar,
   ChevronDown,
   Clock,
-  TrendingUp,
   Heart,
+  RefreshCw,
+  TrendingUp,
 } from 'lucide-react-native';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -30,13 +30,11 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 // Importer les composants de visualisation
 import HeartRateChart from '@/components/running/charts/HeartRateChart';
-import SeasonalPerformanceChart from '@/components/running/charts/SeasonalPerformanceChart';
 import PerformanceComparisonChart from '@/components/running/charts/PerformanceComparisonChart';
+import SeasonalPerformanceChart from '@/components/running/charts/SeasonalPerformanceChart';
 
 // Importer les fonctions de formatage
-import { formatPace, formatDistance, formatDuration } from '@/utils/formatters';
-
-const { width } = Dimensions.get('window');
+import { formatPace } from '@/utils/formatters';
 
 // Périodes disponibles pour les statistiques
 type StatsPeriod = '7d' | '30d' | '90d' | 'all';
@@ -92,7 +90,17 @@ export default function RunningStatisticsScreen() {
   }, [sessions, period]);
 
   // Calcul des statistiques pour la période sélectionnée
-  const stats = React.useMemo(() => {
+  const stats = useMemo(() => {
+    // Séparer les sorties des jours de repos
+    const runSessions = filteredSessions.filter(
+      (s) => s.type === 'run' || s.type === undefined
+    );
+    const restSessions = filteredSessions.filter((s) => s.type === 'rest');
+
+    // Total des sessions par type
+    const totalRuns = runSessions.length;
+    const totalRests = restSessions.length;
+
     if (filteredSessions.length === 0) {
       return {
         totalSessions: 0,
@@ -111,27 +119,30 @@ export default function RunningStatisticsScreen() {
         },
         distanceByWeek: [],
         paceProgression: [],
+        totalRuns,
+        totalRests,
+        restRatio: totalRests > 0 ? totalRests / (totalRuns + totalRests) : 0,
       };
     }
 
     // Total des sessions, distance et durée
     const totalSessions = filteredSessions.length;
-    const totalDistance = filteredSessions.reduce(
+    const totalDistance = runSessions.reduce(
       (sum, s) => sum + (s.distance || 0),
       0
     );
-    const totalDuration = filteredSessions.reduce(
+    const totalDuration = runSessions.reduce(
       (sum, s) => sum + (s.duration || 0),
       0
     );
 
     // Moyennes
-    const avgDistance = totalDistance / totalSessions;
-    const avgDuration = totalDuration / totalSessions;
+    const avgDistance = totalDistance / totalRuns;
+    const avgDuration = totalDuration / totalRuns;
     const avgPace = totalDistance > 0 ? totalDuration / totalDistance : 0;
 
     // Meilleure performance
-    const sessionsWithPace = filteredSessions.filter(
+    const sessionsWithPace = runSessions.filter(
       (s) => s.pace && s.distance && s.distance > 1
     );
     const bestPace =
@@ -146,7 +157,7 @@ export default function RunningStatisticsScreen() {
         : null;
 
     // Course la plus longue
-    const sessionsWithDistance = filteredSessions.filter((s) => s.distance);
+    const sessionsWithDistance = runSessions.filter((s) => s.distance);
     const longestRun =
       sessionsWithDistance.length > 0
         ? sessionsWithDistance.reduce(
@@ -160,19 +171,17 @@ export default function RunningStatisticsScreen() {
 
     // Répartition des ressentis
     const feelingCounts = {
-      Excellent: filteredSessions.filter((s) => s.feeling === 'Excellent')
-        .length,
-      Bien: filteredSessions.filter((s) => s.feeling === 'Bien').length,
-      Moyen: filteredSessions.filter((s) => s.feeling === 'Moyen').length,
-      Difficile: filteredSessions.filter((s) => s.feeling === 'Difficile')
-        .length,
+      Excellent: runSessions.filter((s) => s.feeling === 'Excellent').length,
+      Bien: runSessions.filter((s) => s.feeling === 'Bien').length,
+      Moyen: runSessions.filter((s) => s.feeling === 'Moyen').length,
+      Difficile: runSessions.filter((s) => s.feeling === 'Difficile').length,
     };
 
     // Calcul des données pour graphique de distance par semaine
     const distanceByWeek: { week: string; distance: number }[] = [];
-    if (filteredSessions.length > 0) {
+    if (runSessions.length > 0) {
       // Grouper par semaine
-      const sessionsByWeek = filteredSessions.reduce(
+      const sessionsByWeek = runSessions.reduce(
         (acc: { [key: string]: any[] }, session) => {
           const weekStart = format(
             startOfWeek(new Date(session.date), { weekStartsOn: 1 }),
@@ -213,7 +222,7 @@ export default function RunningStatisticsScreen() {
     }
 
     // Progression de l'allure dans le temps
-    const paceProgression = filteredSessions
+    const paceProgression = runSessions
       .filter((s) => s.pace && s.distance && s.distance > 1)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .map((s) => ({
@@ -233,6 +242,9 @@ export default function RunningStatisticsScreen() {
       feelingCounts,
       distanceByWeek,
       paceProgression,
+      totalRuns,
+      totalRests,
+      restRatio: totalRests > 0 ? totalRests / (totalRuns + totalRests) : 0,
     };
   }, [filteredSessions]);
 
@@ -385,6 +397,54 @@ export default function RunningStatisticsScreen() {
                   ]}
                 >
                   Allure
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Carte pour les jours de repos */}
+        <Animated.View
+          entering={FadeInDown.delay(250)}
+          style={styles.statsCard}
+        >
+          <View
+            style={[
+              styles.statsCardContent,
+              { backgroundColor: colors.cardBackground },
+            ]}
+          >
+            <View style={styles.statsCardHeader}>
+              <RefreshCw size={20} color={colors.success[500]} />
+              <Text style={[styles.statsCardTitle, { color: colors.text }]}>
+                Jours de repos
+              </Text>
+            </View>
+            <View style={styles.statsCardBody}>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {stats.totalRests}
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Total
+                </Text>
+              </View>
+              <View style={styles.statsCardItem}>
+                <Text style={[styles.statsCardValue, { color: colors.text }]}>
+                  {Math.round(stats.restRatio * 100)}%
+                </Text>
+                <Text
+                  style={[
+                    styles.statsCardLabel,
+                    { color: colors.neutral[500] },
+                  ]}
+                >
+                  Ratio
                 </Text>
               </View>
             </View>

@@ -12,6 +12,7 @@ export interface RunningSession {
   id: string;
   date: Date;
   feeling: 'Excellent' | 'Bien' | 'Moyen' | 'Difficile';
+  type: 'run' | 'rest';   
   description: string;
   distance?: number;
   duration?: number;
@@ -46,6 +47,10 @@ export interface FilterOptions {
     enabled: boolean;
     startDate: Date;
     endDate: Date;
+  };
+  sessionType: {
+    enabled: boolean;
+    values: ('run' | 'rest')[];
   };
   distance: {
     enabled: boolean;
@@ -95,6 +100,10 @@ export function useRunningData() {
       enabled: false,
       startDate: defaultStartDate,
       endDate: new Date(),
+    },
+    sessionType: {
+      enabled: false,
+      values: ['run', 'rest'], 
     },
     distance: {
       enabled: false,
@@ -173,6 +182,13 @@ export function useRunningData() {
           isBefore(sessionDate, filterOptions.dateRange.endDate)
         );
       });
+    }
+
+    // Filtre par type de session
+    if (filterOptions.sessionType.enabled) {
+      result = result.filter((session) =>
+        filterOptions.sessionType.values.includes(session.type || 'run')
+      );
     }
 
     // Filtre par distance

@@ -1,14 +1,19 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
-import {
-  RunningData,
-  useRunningData
-} from '@/hooks/useRunningData';
+import { RunningData, useRunningData } from '@/hooks/useRunningData';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { AlertCircle, Calendar, Download, Filter, RefreshCw, X } from 'lucide-react-native';
+import {
+  Activity,
+  AlertCircle,
+  Calendar,
+  Download,
+  Filter,
+  RefreshCw,
+  X,
+} from 'lucide-react-native';
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -64,6 +69,7 @@ export default function RunningFiltersScreen() {
     elevation: false,
     heartRate: false,
     feeling: false,
+    sessionType: false, // Ajout de la section sessionType
   });
 
   // Refs for TextInputs
@@ -406,6 +412,158 @@ export default function RunningFiltersScreen() {
               />
             </FilterSection>
 
+            {/* UI pour filtrer par type de session */}
+            <FilterSection
+              title="Type de session"
+              isExpanded={expandedSections.sessionType}
+              onToggle={() => toggleSectionExpand('sessionType')}
+              colors={colors}
+            >
+              <View style={styles.switchRow}>
+                <Text style={[styles.filterLabel, { color: colors.text }]}>
+                  Filtrer par type de session
+                </Text>
+                <Switch
+                  value={filterOptions.sessionType.enabled}
+                  onValueChange={(value) =>
+                    setFilterOptions({
+                      ...filterOptions,
+                      sessionType: {
+                        ...filterOptions.sessionType,
+                        enabled: value,
+                      },
+                    })
+                  }
+                  trackColor={{
+                    false: colors.neutral[300],
+                    true: colors.secondary[300],
+                  }}
+                  thumbColor={
+                    filterOptions.sessionType.enabled
+                      ? colors.secondary[500]
+                      : colors.neutral[100]
+                  }
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.sessionTypeContainer,
+                  { opacity: filterOptions.sessionType.enabled ? 1 : 0.5 },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.typeFilterButton,
+                    filterOptions.sessionType.values.includes('run')
+                      ? {
+                          backgroundColor: colors.secondary[100],
+                          borderColor: colors.secondary[500],
+                        }
+                      : { borderColor: colors.neutral[300] },
+                  ]}
+                  onPress={() => {
+                    if (filterOptions.sessionType.enabled) {
+                      const currentValues = [
+                        ...filterOptions.sessionType.values,
+                      ];
+                      const newValues = currentValues.includes('run')
+                        ? currentValues.filter((v) => v !== 'run')
+                        : [...currentValues, 'run'];
+
+                      // S'assurer qu'au moins un type est sélectionné
+                      if (newValues.length > 0) {
+                        setFilterOptions({
+                          ...filterOptions,
+                          sessionType: {
+                            ...filterOptions.sessionType,
+                            values: newValues as ("run" | "rest")[],
+                          },
+                        });
+                      }
+                    }
+                  }}
+                  disabled={!filterOptions.sessionType.enabled}
+                >
+                  <Activity
+                    size={18}
+                    color={
+                      filterOptions.sessionType.values.includes('run')
+                        ? colors.secondary[500]
+                        : colors.neutral[400]
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.typeFilterText,
+                      {
+                        color: filterOptions.sessionType.values.includes('run')
+                          ? colors.secondary[500]
+                          : colors.neutral[500],
+                      },
+                    ]}
+                  >
+                    Sorties course
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.typeFilterButton,
+                    filterOptions.sessionType.values.includes('rest')
+                      ? {
+                          backgroundColor: colors.success[100],
+                          borderColor: colors.success[500],
+                        }
+                      : { borderColor: colors.neutral[300] },
+                  ]}
+                  onPress={() => {
+                    if (filterOptions.sessionType.enabled) {
+                      const currentValues = [
+                        ...filterOptions.sessionType.values,
+                      ];
+                      const newValues = currentValues.includes('rest')
+                        ? currentValues.filter((v) => v !== 'rest')
+                        : [...currentValues, 'rest'];
+
+                      // S'assurer qu'au moins un type est sélectionné
+                      if (newValues.length > 0) {
+                        setFilterOptions({
+                          ...filterOptions,
+                          sessionType: {
+                            ...filterOptions.sessionType,
+                            values: newValues as ("run" | "rest")[],
+                          },
+                        });
+                      }
+                    }
+                  }}
+                  disabled={!filterOptions.sessionType.enabled}
+                >
+                  <RefreshCw
+                    size={18}
+                    color={
+                      filterOptions.sessionType.values.includes('rest')
+                        ? colors.success[500]
+                        : colors.neutral[400]
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.typeFilterText,
+                      {
+                        color: filterOptions.sessionType.values.includes('rest')
+                          ? colors.success[500]
+                          : colors.neutral[500],
+                      },
+                    ]}
+                  >
+                    Jours de repos
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </FilterSection>
+
             {/* Résumé des résultats */}
             <ResultsSummary
               filteredSessions={filteredSessions}
@@ -622,5 +780,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
+  },
+  sessionTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sessionTypeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    flex: 1,
+    marginHorizontal: 6,
+  },
+  sessionTypeText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 8,
+  },
+  typeFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+    flex: 1,
+    marginHorizontal: 4,
+    justifyContent: 'center',
+  },
+  typeFilterText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+  },
+  restFields: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
 });
