@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Animated, {
@@ -9,10 +9,12 @@ import Animated, {
   interpolateColor,
   useAnimatedStyle,
   withSequence,
-  withSpring,
 } from 'react-native-reanimated';
 import { useAppContext } from '@/context/AppContext';
 import Colors from '@/constants/Colors';
+
+// Animated Circle
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface ProgressCircleProps {
   size?: number;
@@ -20,29 +22,35 @@ interface ProgressCircleProps {
   showPercentage?: boolean;
 }
 
-// Create animated component for Circle
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
 export default function ProgressCircle({
   size = 120,
   strokeWidth = 12,
   showPercentage = true,
 }: ProgressCircleProps) {
   const { dailyProgress, isDarkMode, settings } = useAppContext();
-  const colors = isDarkMode ? Colors.dark : Colors.light;
 
-  // Calculate circle properties
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
+  // Memoized colors
+  const colors = useMemo(
+    () => (isDarkMode ? Colors.dark : Colors.light),
+    [isDarkMode]
+  );
 
-  // Animation values for progress
+  // Memoized dimensions
+  const { radius, circumference } = useMemo(() => {
+    const r = (size - strokeWidth) / 2;
+    return {
+      radius: r,
+      circumference: 2 * Math.PI * r,
+    };
+  }, [size, strokeWidth]);
+
+  // Shared animation values
   const progressValue = useSharedValue(0);
   const pulseAnimation = useSharedValue(1);
   const colorAnimation = useSharedValue(0);
 
-  // Initialize animation on mount
+  // Init animation
   useEffect(() => {
-    // Initial animation
     progressValue.value = 0;
     setTimeout(() => {
       progressValue.value = withTiming(dailyProgress, {
@@ -50,20 +58,17 @@ export default function ProgressCircle({
         easing: Easing.bezierFn(0.25, 0.1, 0.25, 1),
       });
 
-      // Add a pulse effect when the circle first loads
       pulseAnimation.value = withSequence(
         withTiming(1.05, { duration: 600, easing: Easing.out(Easing.cubic) }),
         withTiming(1, { duration: 400, easing: Easing.inOut(Easing.cubic) })
       );
 
-      // Animate color based on progress
       colorAnimation.value = withTiming(dailyProgress, { duration: 800 });
     }, 300);
   }, []);
 
-  // Update progress value when dailyProgress changes
+  // Update when dailyProgress changes
   useEffect(() => {
-    // Only run if this isn't the first render - first render is handled above
     if (progressValue.value > 0) {
       progressValue.value = withTiming(dailyProgress, {
         duration: 1000,
@@ -72,7 +77,6 @@ export default function ProgressCircle({
 
       colorAnimation.value = withTiming(dailyProgress, { duration: 800 });
 
-      // Add a subtle pulse effect when the circle updates
       if (Math.abs(progressValue.value - dailyProgress) > 0.05) {
         pulseAnimation.value = withSequence(
           withTiming(1.03, { duration: 300, easing: Easing.out(Easing.cubic) }),
@@ -82,11 +86,9 @@ export default function ProgressCircle({
     }
   }, [dailyProgress]);
 
-  // Animated props for the progress circle
+  // Animated props for progress stroke
   const animatedProps = useAnimatedProps(() => {
-    // Clamp progress between 0 and 1
     const clampedProgress = Math.min(Math.max(progressValue.value, 0), 1);
-    // Calculate stroke dashoffset based on progress
     const strokeDashoffset = circumference - circumference * clampedProgress;
 
     return {
@@ -94,14 +96,12 @@ export default function ProgressCircle({
     };
   });
 
-  // Animated style for the pulse effect
-  const pulseStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: pulseAnimation.value }],
-    };
-  });
+  // Pulse animation style
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseAnimation.value }],
+  }));
 
-  // Animated style for text color
+  // Animated text color style
   const textColorStyle = useAnimatedStyle(() => {
     const textColor = interpolateColor(
       colorAnimation.value,
@@ -114,26 +114,19 @@ export default function ProgressCircle({
       ]
     );
 
-    return {
-      color: textColor,
-    };
+    return { color: textColor };
   });
 
-  // Calculate total intake
-  const calculateTotalIntake = () => {
-    // Sum up all the intake amounts
-    const totalml = dailyProgress * settings.dailyGoal;
+  // Memoized total intake calculation
+  const calculateTotalIntake = useCallback(() => {
+    const totalMl = dailyProgress * settings.dailyGoal;
 
-    // Format based on user's preferred unit
     if (settings.preferredUnit === 'oz') {
-      // Convert ml to oz (1 ml = 0.033814 oz)
-      return `${Math.round(totalml * 0.033814)} oz`;
-    } else {
-      return `${Math.round(totalml)} ml`;
+      return `${Math.round(totalMl * 0.033814)} oz`;
     }
-  };
+    return `${Math.round(totalMl)} ml`;
+  }, [dailyProgress, settings]);
 
-  // Calculate percentage for display
   const percentage = Math.min(Math.round(dailyProgress * 100), 100);
 
   return (
@@ -149,7 +142,7 @@ export default function ProgressCircle({
           fill="transparent"
         />
 
-        {/* Progress circle */}
+        {/* Animated progress circle */}
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
@@ -160,7 +153,6 @@ export default function ProgressCircle({
           strokeLinecap="round"
           strokeDasharray={circumference}
           animatedProps={animatedProps}
-          // Rotate to start from top
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>
@@ -168,11 +160,9 @@ export default function ProgressCircle({
       {/* Center text */}
       <View style={styles.textContainer}>
         {showPercentage ? (
-          <>
-            <Animated.Text style={[styles.percentageText, textColorStyle]}>
-              {percentage}%
-            </Animated.Text>
-          </>
+          <Animated.Text style={[styles.percentageText, textColorStyle]}>
+            {percentage}%
+          </Animated.Text>
         ) : (
           <Animated.Text style={[styles.amountText, textColorStyle]}>
             {calculateTotalIntake()}

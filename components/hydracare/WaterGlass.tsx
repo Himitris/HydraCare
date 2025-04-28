@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,7 +20,7 @@ import Svg, {
   RadialGradient,
   Stop,
   ClipPath,
-  Rect
+  Rect,
 } from 'react-native-svg';
 
 interface WaterGlassProps {
@@ -207,37 +207,37 @@ export default function WaterGlass({ progress }: WaterGlassProps) {
   }));
 
   // Améliorations des animations de bulles
-  const createBubbleStyle = (
-    bubbleValue: Animated.SharedValue<number>,
-    offsetX: number
-  ) => {
-    return useAnimatedStyle(() => ({
-      transform: [
-        {
-          translateY: interpolate(
-            bubbleValue.value,
-            [0, 1],
-            [0, -GLASS_HEIGHT * 0.7]
-          ),
-        },
-        {
-          translateX: interpolate(
-            bubbleValue.value,
-            [0, 0.3, 0.7, 1],
-            [0, offsetX * 0.7, offsetX * 0.3, 0]
-          ),
-        },
-        {
-          scale: interpolate(
-            bubbleValue.value,
-            [0, 0.2, 0.8, 1],
-            [0.3, 0.8, 0.8, 0.3]
-          ),
-        },
-      ],
-      opacity: interpolate(bubbleValue.value, [0, 0.1, 0.8, 1], [0, 1, 1, 0]),
-    }));
-  };
+  const createBubbleStyle = useCallback(
+    (bubbleValue: Animated.SharedValue<number>, offsetX: number) => {
+      return useAnimatedStyle(() => ({
+        transform: [
+          {
+            translateY: interpolate(
+              bubbleValue.value,
+              [0, 1],
+              [0, -GLASS_HEIGHT * 0.7]
+            ),
+          },
+          {
+            translateX: interpolate(
+              bubbleValue.value,
+              [0, 0.3, 0.7, 1],
+              [0, offsetX * 0.7, offsetX * 0.3, 0]
+            ),
+          },
+          {
+            scale: interpolate(
+              bubbleValue.value,
+              [0, 0.2, 0.8, 1],
+              [0.3, 0.8, 0.8, 0.3]
+            ),
+          },
+        ],
+        opacity: interpolate(bubbleValue.value, [0, 0.1, 0.8, 1], [0, 1, 1, 0]),
+      }));
+    },
+    []
+  );
 
   const bubble1Style = createBubbleStyle(bubbleY1, 8);
   const bubble2Style = createBubbleStyle(bubbleY2, -10);
