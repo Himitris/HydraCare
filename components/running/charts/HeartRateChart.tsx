@@ -24,25 +24,44 @@ interface HeartRateChartProps {
 }
 
 const HeartRateChart = ({
-  sessions,
-  colors,
-  period = 'recent',
+  sessions, // Les sessions d'entraînement à analyser
+  colors, // Les couleurs de thème pour l'interface
+  period = 'recent', // La période d'analyse: 'recent' ou 'all'
 }: HeartRateChartProps) => {
+  // État pour basculer entre fréquence cardiaque moyenne ou maximale
   const [selectedChart, setSelectedChart] = useState<'avg' | 'max'>('avg');
+
+  // Valeur partagée pour l'animation du composant
   const animationProgress = useSharedValue(0);
 
+  // Déclencher l'animation lorsque les sessions ou le type de graphique change
   useEffect(() => {
     animationProgress.value = 0;
     animationProgress.value = withTiming(1, { duration: 1000 });
   }, [sessions, selectedChart]);
 
+  // PARTIE PROBLÉMATIQUE: Filtrage des sessions avec des données de fréquence cardiaque
+  // Le code original ne vérifie pas correctement si les données sont valides
   const sessionsWithHeartRate = sessions.filter(
     (session) =>
       (selectedChart === 'avg' && session.avgHeartRate !== undefined) ||
       (selectedChart === 'max' && session.maxHeartRate !== undefined)
   );
 
-  if (sessionsWithHeartRate.length === 0) {
+  // SOLUTION: Filtrage amélioré avec des vérifications complètes
+  const safeSessionsWithHeartRate = sessions.filter(
+    (session) =>
+      session && // Vérifier que la session existe
+      ((selectedChart === 'avg' &&
+        typeof session.avgHeartRate === 'number' &&
+        !isNaN(session.avgHeartRate)) ||
+        (selectedChart === 'max' &&
+          typeof session.maxHeartRate === 'number' &&
+          !isNaN(session.maxHeartRate)))
+  );
+
+  // Afficher un état vide si aucune donnée de fréquence cardiaque n'est disponible
+  if (safeSessionsWithHeartRate.length === 0) {
     return (
       <View
         style={[
@@ -61,26 +80,59 @@ const HeartRateChart = ({
     );
   }
 
+  // Limiter le nombre de sessions selon la période ou utiliser toutes les sessions
   const filteredSessions =
     period === 'recent'
-      ? sessionsWithHeartRate.slice(0, 10)
-      : sessionsWithHeartRate;
+      ? safeSessionsWithHeartRate.slice(0, 10)
+      : safeSessionsWithHeartRate;
 
+  // PARTIE PROBLÉMATIQUE: Tri des sessions par date sans vérification
+  // Le code original suppose que toutes les dates sont valides
   const sortedSessions = [...filteredSessions].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
+  // SOLUTION: Tri sécurisé des sessions avec vérification des dates
+  const safeSortedSessions = [...filteredSessions].sort((a, b) => {
+    try {
+      if (!a.date || !b.date) return 0;
+
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+
+      return dateA.getTime() - dateB.getTime();
+    } catch (error) {
+      console.error('Error sorting sessions by date:', error);
+      return 0;
+    }
+  });
+
+  // Préparation des données pour le graphique, avec mémorisation pour optimiser les performances
   const chartData = useMemo(
     () => ({
-      labels: sortedSessions.map((session, index) => {
-        const date = new Date(session.date);
-        return index % Math.max(1, Math.floor(sortedSessions.length / 5)) === 0
-          ? `${date.getDate()}/${date.getMonth() + 1}`
-          : '';
+      // Étiquettes pour l'axe X (dates des sessions)
+      labels: safeSortedSessions.map((session, index) => {
+        try {
+          const date = new Date(session.date);
+          if (isNaN(date.getTime())) return '';
+
+          // Afficher seulement quelques dates pour éviter l'encombrement
+          return index %
+            Math.max(1, Math.floor(safeSortedSessions.length / 5)) ===
+            0
+            ? `${date.getDate()}/${date.getMonth() + 1}`
+            : '';
+        } catch (error) {
+          console.error('Error formatting date label:', error);
+          return '';
+        }
       }),
+      // Données pour le graphique (FC moyenne ou maximale)
       datasets: [
         {
-          data: sortedSessions.map((session) =>
+          data: safeSortedSessions.map((session) =>
             selectedChart === 'avg'
               ? session.avgHeartRate
               : session.maxHeartRate
@@ -92,44 +144,58 @@ const HeartRateChart = ({
       ],
       legend: [selectedChart === 'avg' ? 'FC Moyenne (bpm)' : 'FC Max (bpm)'],
     }),
-    [sortedSessions, selectedChart, colors]
+    [safeSortedSessions, selectedChart, colors]
   );
 
-  // Calculate min/max and trends for heart rate
-  const heartRateData = sortedSessions.map((session) =>
+  // Calcul des statistiques sur les données de fréquence cardiaque
+  const heartRateData = safeSortedSessions.map((session) =>
     selectedChart === 'avg' ? session.avgHeartRate : session.maxHeartRate
   );
 
-  const averageHeartRate = heartRateData.length
+  // Calcul de la moyenne, du min et du max avec vérifications
+  const validHeartRateData = heartRateData.filter(
+    (hr) => typeof hr === 'number' && !isNaN(hr)
+  );
+
+  const averageHeartRate = validHeartRateData.length
     ? Math.round(
-        heartRateData.reduce((sum, hr) => sum + hr, 0) / heartRateData.length
+        validHeartRateData.reduce((sum, hr) => sum + hr, 0) /
+          validHeartRateData.length
       )
     : 0;
 
-  const minHeartRate = heartRateData.length ? Math.min(...heartRateData) : 0;
-  const maxHeartRate = heartRateData.length ? Math.max(...heartRateData) : 0;
+  const minHeartRate = validHeartRateData.length
+    ? Math.min(...validHeartRateData)
+    : 0;
+  const maxHeartRate = validHeartRateData.length
+    ? Math.max(...validHeartRateData)
+    : 0;
 
-  // Calculate trend (is heart rate going up or down over time)
+  // Calcul de la tendance (régression linéaire) avec vérifications de sécurité
   let trend = 0;
 
   if (
-    heartRateData.length >= 3 &&
-    heartRateData.every((hr) => typeof hr === 'number' && !isNaN(hr))
+    validHeartRateData.length >= 3 // Avoir au moins 3 points pour une tendance significative
   ) {
-    const x = Array.from({ length: heartRateData.length }, (_, i) => i);
-    const y = heartRateData;
+    try {
+      const x = Array.from({ length: validHeartRateData.length }, (_, i) => i);
+      const y = validHeartRateData;
 
-    const n = x.length;
-    const sumX = x.reduce((a, b) => a + b, 0);
-    const sumY = y.reduce((a, b) => a + b, 0);
-    const sumXY = x.reduce((total, xi, i) => total + xi * y[i], 0);
-    const sumX2 = x.reduce((total, xi) => total + xi * xi, 0);
+      const n = x.length;
+      const sumX = x.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const sumXY = x.reduce((total, xi, i) => total + xi * y[i], 0);
+      const sumX2 = x.reduce((total, xi) => total + xi * xi, 0);
 
-    const denominator = n * sumX2 - sumX * sumX;
-    trend = denominator !== 0 ? (n * sumXY - sumX * sumY) / denominator : 0;
+      const denominator = n * sumX2 - sumX * sumX;
+      trend = denominator !== 0 ? (n * sumXY - sumX * sumY) / denominator : 0;
+    } catch (error) {
+      console.error('Error calculating heart rate trend:', error);
+      trend = 0;
+    }
   }
 
-  // Chart configuration
+  // Configuration du graphique
   const chartConfig = useMemo(
     () => ({
       backgroundColor: 'transparent',
@@ -154,30 +220,11 @@ const HeartRateChart = ({
     [colors, selectedChart]
   );
 
-  // Animation styles
+  // Style d'animation pour le composant
   const cardStyle = useAnimatedStyle(() => ({
     opacity: animationProgress.value,
     transform: [{ translateY: (1 - animationProgress.value) * 20 }],
   }));
-
-  if (sessionsWithHeartRate.length === 0) {
-    return (
-      <View
-        style={[
-          styles.emptyContainer,
-          { backgroundColor: colors.cardBackground },
-        ]}
-      >
-        <Heart size={40} color={colors.neutral[400]} />
-        <Text style={[styles.emptyText, { color: colors.text }]}>
-          Pas de données de fréquence cardiaque disponibles
-        </Text>
-        <Text style={[styles.emptySubtext, { color: colors.neutral[500] }]}>
-          Commencez à enregistrer vos FC pour voir des statistiques ici
-        </Text>
-      </View>
-    );
-  }
 
   return (
     <Animated.View

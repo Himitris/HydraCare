@@ -208,13 +208,10 @@ export default function RunningScreen() {
   };
 
   const handleAddSession = useCallback(() => {
-    if (!newSession.description?.trim()) {
-      Alert.alert(
-        'Erreur',
-        'Veuillez ajouter une description pour votre session'
-      );
-      return;
-    }
+    // Suppression de la vérification obligatoire de la description
+
+    // Description optionnelle (peut être vide)
+    const description = newSession.description?.trim() || '';
 
     // Calculer automatiquement l'allure si on a la distance et la durée (pour les sorties uniquement)
     let pace = newSession.pace;
@@ -236,7 +233,7 @@ export default function RunningScreen() {
             ...session,
             date: newSession.date || new Date(),
             feeling: newSession.feeling || 'good',
-            description: newSession.description?.trim() || '',
+            description: description,
             type: sessionType, // Ajout du type
             // Ajouter les champs de performance seulement si c'est une sortie
             ...(sessionType === 'run'
@@ -273,7 +270,7 @@ export default function RunningScreen() {
         id: Date.now().toString(),
         date: newSession.date || new Date(),
         feeling: newSession.feeling || 'good',
-        description: newSession.description.trim(),
+        description: description,
         type: sessionType, // Ajout du type
         // Ajouter les champs de performance uniquement pour les sorties
         ...(sessionType === 'run'
@@ -308,7 +305,7 @@ export default function RunningScreen() {
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-  }, []);
+  }, [sessionType, newSession, editingSessionId, sessions]);
 
   const openModal = useCallback(() => {
     setShowAddModal(true);

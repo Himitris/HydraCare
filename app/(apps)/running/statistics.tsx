@@ -80,28 +80,24 @@ export default function RunningStatisticsScreen() {
         break;
     }
 
-    const filtered = sessions.filter(
-      (session) =>
-        isAfter(new Date(session.date), cutoffDate) &&
-        isBefore(new Date(session.date), now)
-    );
+    const filtered = sessions.filter((session) => {
+      // Vérifier que session.date est défini et valide
+      if (!session || !session.date) return false;
+
+      const sessionDate = new Date(session.date);
+      // Vérifier que la date est valide
+      if (isNaN(sessionDate.getTime())) return false;
+
+      return isAfter(sessionDate, cutoffDate) && isBefore(sessionDate, now);
+    });
 
     setFilteredSessions(filtered);
   }, [sessions, period]);
 
   // Calcul des statistiques pour la période sélectionnée
   const stats = useMemo(() => {
-    // Séparer les sorties des jours de repos
-    const runSessions = filteredSessions.filter(
-      (s) => s.type === 'run' || s.type === undefined
-    );
-    const restSessions = filteredSessions.filter((s) => s.type === 'rest');
-
-    // Total des sessions par type
-    const totalRuns = runSessions.length;
-    const totalRests = restSessions.length;
-
-    if (filteredSessions.length === 0) {
+    // Vérifier que les sessions sont bien définies
+    if (!filteredSessions || filteredSessions.length === 0) {
       return {
         totalSessions: 0,
         totalDistance: 0,
@@ -119,116 +115,189 @@ export default function RunningStatisticsScreen() {
         },
         distanceByWeek: [],
         paceProgression: [],
-        totalRuns,
-        totalRests,
-        restRatio: totalRests > 0 ? totalRests / (totalRuns + totalRests) : 0,
+        totalRuns: 0,
+        totalRests: 0,
+        restRatio: 0,
       };
     }
 
-    // Total des sessions, distance et durée
+    // Séparer les sorties valides des jours de repos
+    const runSessions = filteredSessions.filter(
+      (s) => (s.type === 'run' || s.type === undefined) && s !== null
+    );
+    const restSessions = filteredSessions.filter(
+      (s) => s !== null && s.type === 'rest'
+    );
+
+    // Total des sessions par type
+    const totalRuns = runSessions.length;
+    const totalRests = restSessions.length;
+
+    // Total des sessions, distance et durée avec vérifications supplémentaires
     const totalSessions = filteredSessions.length;
     const totalDistance = runSessions.reduce(
-      (sum, s) => sum + (s.distance || 0),
+      (sum, s) => sum + (s && typeof s.distance === 'number' ? s.distance : 0),
       0
     );
     const totalDuration = runSessions.reduce(
-      (sum, s) => sum + (s.duration || 0),
+      (sum, s) => sum + (s && typeof s.duration === 'number' ? s.duration : 0),
       0
     );
 
-    // Moyennes
-    const avgDistance = totalDistance / totalRuns;
-    const avgDuration = totalDuration / totalRuns;
+    // Moyennes avec protection contre division par zéro
+    const avgDistance = totalRuns > 0 ? totalDistance / totalRuns : 0;
+    const avgDuration = totalRuns > 0 ? totalDuration / totalRuns : 0;
     const avgPace = totalDistance > 0 ? totalDuration / totalDistance : 0;
 
-    // Meilleure performance
+    // Meilleure performance avec vérifications supplémentaires
     const sessionsWithPace = runSessions.filter(
-      (s) => s.pace && s.distance && s.distance > 1
+      (s) => s && s.pace && s.distance && s.distance > 1
     );
     const bestPace =
       sessionsWithPace.length > 0
-        ? sessionsWithPace.reduce(
-            (best, current) =>
-              (current.pace || Infinity) < (best.pace || Infinity)
-                ? current
-                : best,
-            sessionsWithPace[0]
-          )
+        ? sessionsWithPace.reduce((best, current) => {
+            const currentPace = current?.pace ?? Infinity;
+            const bestPace = best?.pace ?? Infinity;
+            return currentPace < bestPace ? current : best;
+          }, sessionsWithPace[0])
         : null;
 
-    // Course la plus longue
-    const sessionsWithDistance = runSessions.filter((s) => s.distance);
+    // Course la plus longue avec vérifications
+    const sessionsWithDistance = runSessions.filter(
+      (s) => s && typeof s.distance === 'number'
+    );
     const longestRun =
       sessionsWithDistance.length > 0
-        ? sessionsWithDistance.reduce(
-            (longest, current) =>
-              (current.distance || 0) > (longest.distance || 0)
-                ? current
-                : longest,
-            sessionsWithDistance[0]
-          )
+        ? sessionsWithDistance.reduce((longest, current) => {
+            const currentDistance = current?.distance ?? 0;
+            const longestDistance = longest?.distance ?? 0;
+            return currentDistance > longestDistance ? current : longest;
+          }, sessionsWithDistance[0])
         : null;
 
-    // Répartition des ressentis
+    // Répartition des ressentis avec vérifications
     const feelingCounts = {
-      Excellent: runSessions.filter((s) => s.feeling === 'Excellent').length,
-      Bien: runSessions.filter((s) => s.feeling === 'Bien').length,
-      Moyen: runSessions.filter((s) => s.feeling === 'Moyen').length,
-      Difficile: runSessions.filter((s) => s.feeling === 'Difficile').length,
+      Excellent: runSessions.filter((s) => s && s.feeling === 'Excellent').length,
+      Bien: runSessions.filter((s) => s && s.feeling === 'Bien').length,
+      Moyen: runSessions.filter((s) => s && s.feeling === 'Moyen').length,
+      Difficile: runSessions.filter((s) => s && s.feeling === 'Difficile').length,
     };
 
     // Calcul des données pour graphique de distance par semaine
     const distanceByWeek: { week: string; distance: number }[] = [];
     if (runSessions.length > 0) {
-      // Grouper par semaine
+      // Grouper par semaine avec vérifications
       const sessionsByWeek = runSessions.reduce(
         (acc: { [key: string]: any[] }, session) => {
-          const weekStart = format(
-            startOfWeek(new Date(session.date), { weekStartsOn: 1 }),
-            'yyyy-MM-dd'
-          );
-          if (!acc[weekStart]) {
-            acc[weekStart] = [];
+          if (!session || !session.date) return acc;
+
+          try {
+            const sessionDate = new Date(session.date);
+            if (isNaN(sessionDate.getTime())) return acc;
+
+            const weekStart = format(
+              startOfWeek(sessionDate, { weekStartsOn: 1 }),
+              'yyyy-MM-dd'
+            );
+            if (!acc[weekStart]) {
+              acc[weekStart] = [];
+            }
+            acc[weekStart].push(session);
+          } catch (error) {
+            console.error('Error processing session date:', error);
           }
-          acc[weekStart].push(session);
           return acc;
         },
         {}
       );
 
-      // Calculer la distance totale par semaine
+      // Calculer la distance totale par semaine avec vérifications
       Object.entries(sessionsByWeek).forEach(([weekStart, sessionsInWeek]) => {
-        const weekLabel = format(new Date(weekStart), 'dd/MM');
-        const totalDistance = sessionsInWeek.reduce(
-          (sum, s) => sum + (s.distance || 0),
-          0
-        );
-        distanceByWeek.push({
-          week: weekLabel,
-          distance: parseFloat(totalDistance.toFixed(1)),
-        });
+        try {
+          const weekLabel = format(new Date(weekStart), 'dd/MM');
+          const totalDistance = sessionsInWeek.reduce(
+            (sum, s) =>
+              sum + (s && typeof s.distance === 'number' ? s.distance : 0),
+            0
+          );
+          distanceByWeek.push({
+            week: weekLabel,
+            distance: parseFloat(totalDistance.toFixed(1)),
+          });
+        } catch (error) {
+          console.error('Error calculating distance by week:', error);
+        }
       });
 
-      // Trier par date
-      distanceByWeek.sort((a, b) => {
-        const dateA = new Date(
-          a.week.split('/')[1] + '/' + a.week.split('/')[0] + '/2023'
-        );
-        const dateB = new Date(
-          b.week.split('/')[1] + '/' + b.week.split('/')[0] + '/2023'
-        );
-        return dateA.getTime() - dateB.getTime();
-      });
+      // Trier par date avec vérifications
+      try {
+        distanceByWeek.sort((a, b) => {
+          if (!a.week || !b.week) return 0;
+
+          try {
+            const partsA = a.week.split('/');
+            const partsB = b.week.split('/');
+
+            if (partsA.length !== 2 || partsB.length !== 2) return 0;
+
+            const dateA = new Date(
+              2023,
+              parseInt(partsA[1]) - 1,
+              parseInt(partsA[0])
+            );
+            const dateB = new Date(
+              2023,
+              parseInt(partsB[1]) - 1,
+              parseInt(partsB[0])
+            );
+
+            if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+
+            return dateA.getTime() - dateB.getTime();
+          } catch (error) {
+            console.error('Error sorting distance by week:', error);
+            return 0;
+          }
+        });
+      } catch (error) {
+        console.error('Error sorting distance by week:', error);
+      }
     }
 
-    // Progression de l'allure dans le temps
+    // Progression de l'allure dans le temps avec vérifications
     const paceProgression = runSessions
-      .filter((s) => s.pace && s.distance && s.distance > 1)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .map((s) => ({
-        date: format(new Date(s.date), 'dd/MM'),
-        pace: s.pace || 0,
-      }));
+      .filter((s) => s && s.pace && s.distance && s.distance > 1)
+      .sort((a, b) => {
+        try {
+          if (!a.date || !b.date) return 0;
+
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+
+          if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+
+          return dateA.getTime() - dateB.getTime();
+        } catch (error) {
+          console.error('Error sorting pace progression:', error);
+          return 0;
+        }
+      })
+      .map((s) => {
+        try {
+          if (!s.date) return { date: '', pace: 0 };
+
+          const sessionDate = new Date(s.date);
+          if (isNaN(sessionDate.getTime())) return { date: '', pace: 0 };
+
+          return {
+            date: format(sessionDate, 'dd/MM'),
+            pace: s.pace || 0,
+          };
+        } catch (error) {
+          console.error('Error mapping pace progression:', error);
+          return { date: '', pace: 0 };
+        }
+      });
 
     return {
       totalSessions,
@@ -244,7 +313,8 @@ export default function RunningStatisticsScreen() {
       paceProgression,
       totalRuns,
       totalRests,
-      restRatio: totalRests > 0 ? totalRests / (totalRuns + totalRests) : 0,
+      restRatio:
+        totalRuns + totalRests > 0 ? totalRests / (totalRuns + totalRests) : 0,
     };
   }, [filteredSessions]);
 
