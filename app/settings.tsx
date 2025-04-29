@@ -232,7 +232,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={styles.settingLink}
-              onPress={() => router.push('/(apps)/hydracare/settings')}
+              onPress={() => router.push('/(apps)/hydracare/settings' as any)}
             >
               <Text
                 style={[styles.settingText, { color: colors.primary[500] }]}

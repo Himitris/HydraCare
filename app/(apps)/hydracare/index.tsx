@@ -4,9 +4,10 @@ import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { CheckCircle, Minus } from 'lucide-react-native';
+import { CheckCircle, Minus, ThermometerIcon } from 'lucide-react-native';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
+  Alert,
   Dimensions,
   Image,
   Platform,
@@ -19,6 +20,7 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -30,8 +32,14 @@ import Svg, { Path } from 'react-native-svg';
 const { width, height } = Dimensions.get('window');
 
 export default function HomeScreen() {
-  const { settings, dailyProgress, addWaterIntake, isDarkMode } =
-    useAppContext();
+  const { 
+    settings, 
+    dailyProgress, 
+    addWaterIntake, 
+    isDarkMode, 
+    updateSettings, 
+    currentDailyGoal 
+  } = useAppContext();
 
   // Mémoriser les couleurs pour éviter des recalculs inutiles quand isDarkMode change
   const colors = useMemo(
@@ -40,12 +48,60 @@ export default function HomeScreen() {
   );
 
   const [correctionMode, setCorrectionMode] = useState(false);
+  
+  // Ajustement climatique
+  const [showClimateAdjuster, setShowClimateAdjuster] = useState(false);
+  const [temperatureLevel, setTemperatureLevel] = useState(0); // 0: normal, 1: >25°C, 2: >30°C, 3: >35°C
+  const [physicalActivity, setPhysicalActivity] = useState(false); // true: activité physique intense
 
   // Animations
   const backgroundOpacity = useSharedValue(0.8);
   const backgroundTranslateY = useSharedValue(0);
   const correctionModeOpacity = useSharedValue(0);
   const correctionModeScale = useSharedValue(0.95);
+
+  // Calcul de l'ajustement total
+  const calculatedAdjustment = useMemo(() => {
+    let adjustment = 0;
+    
+    // Ajustement basé sur la température
+    if (temperatureLevel === 1) adjustment = 500; // +0,5L si >25°C
+    else if (temperatureLevel === 2) adjustment = 1000; // +1L si >30°C
+    else if (temperatureLevel === 3) adjustment = 1500; // +1,5L si >35°C
+    
+    // Ajustement supplémentaire pour l'activité physique
+    if (physicalActivity) adjustment += 2000; // +2L pour activité physique intense
+    
+    return adjustment;
+  }, [temperatureLevel, physicalActivity]);
+
+  // Appliquer l'ajustement climatique
+  const applyClimateAdjustment = useCallback(() => {
+    if (calculatedAdjustment > 0) {
+      // Appliquer via le context
+      updateSettings({ temporaryGoalAdjustment: calculatedAdjustment });
+      
+      // Fermer le panneau d'ajustement
+      setShowClimateAdjuster(false);
+      
+      // Afficher une confirmation
+      Alert.alert(
+        "Ajustement appliqué",
+        `Votre objectif d'aujourd'hui a été ajusté à ${settings.dailyGoal + calculatedAdjustment} ml en raison des conditions climatiques.`,
+        [{ text: "OK" }]
+      );
+    } else {
+      // Si aucun ajustement n'est appliqué, simplement réinitialiser
+      updateSettings({ temporaryGoalAdjustment: 0 });
+      setShowClimateAdjuster(false);
+      
+      Alert.alert(
+        "Ajustement réinitialisé",
+        "Votre objectif d'hydratation est revenu à sa valeur de base.",
+        [{ text: "OK" }]
+      );
+    }
+  }, [calculatedAdjustment, settings.dailyGoal, updateSettings]);
 
   // Setup background animations only once
   useEffect(() => {
@@ -73,17 +129,17 @@ export default function HomeScreen() {
   const formattedValues = useMemo(() => {
     const formattedGoal =
       settings.preferredUnit === 'ml'
-        ? `${settings.dailyGoal} ml`
-        : `${Math.round(settings.dailyGoal * 0.033814)} oz`;
+        ? `${currentDailyGoal} ml`
+        : `${Math.round(currentDailyGoal * 0.033814)} oz`;
 
-    const currentAmount = Math.round(dailyProgress * settings.dailyGoal);
+    const currentAmount = Math.round(dailyProgress * currentDailyGoal);
     const formattedCurrent =
       settings.preferredUnit === 'ml'
         ? `${currentAmount}`
         : `${Math.round(currentAmount * 0.033814)}`;
 
     return { formattedGoal, formattedCurrent };
-  }, [settings.preferredUnit, settings.dailyGoal, dailyProgress]);
+  }, [settings.preferredUnit, currentDailyGoal, dailyProgress]);
 
   // Zen quotes that rotate daily - useMemo pour éviter de recalculer à chaque rendu
   const zenQuote = useMemo(() => {
@@ -128,18 +184,18 @@ export default function HomeScreen() {
   const handleWaterChange = useCallback(
     (amount: number) => {
       if (correctionMode) {
-        const currentTotal = dailyProgress * settings.dailyGoal;
+        const currentTotal = dailyProgress * currentDailyGoal;
         if (currentTotal - amount >= 0) {
           addWaterIntake(-amount);
         }
       } else {
-        const currentTotal = dailyProgress * settings.dailyGoal;
-        if (currentTotal + amount <= settings.dailyGoal * 1.1) {
+        const currentTotal = dailyProgress * currentDailyGoal;
+        if (currentTotal + amount <= currentDailyGoal * 1.1) {
           addWaterIntake(amount);
         }
       }
     },
-    [correctionMode, dailyProgress, settings.dailyGoal, addWaterIntake]
+    [correctionMode, dailyProgress, currentDailyGoal, addWaterIntake]
   );
 
   // Toggle correction mode avec useCallback
@@ -229,6 +285,140 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
+
+          {/* Bouton d'ajustement climatique */}
+          <TouchableOpacity
+            style={[
+              styles.climateButton,
+              { backgroundColor: colors.primary[100] + 'CC' }
+            ]}
+            onPress={() => setShowClimateAdjuster(!showClimateAdjuster)}
+          >
+            <ThermometerIcon size={22} color={colors.primary[500]} />
+            <Text style={[styles.climateButtonText, { color: colors.primary[600] }]}>
+              {settings.temporaryGoalAdjustment > 0 
+                ? "Ajustement actif" 
+                : "Ajuster pour aujourd'hui"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Panneau d'ajustement climatique */}
+          {showClimateAdjuster && (
+            <Animated.View
+              entering={FadeInDown}
+              style={[
+                styles.climatePanel,
+                { backgroundColor: colors.cardBackground }
+              ]}
+            >
+              <Text style={[styles.climatePanelTitle, { color: colors.text }]}>
+                Conditions du jour
+              </Text>
+              
+              <View style={styles.temperatureSelector}>
+                <Text style={[styles.temperatureLabel, { color: colors.neutral[600] }]}>
+                  Température
+                </Text>
+                <View style={styles.temperatureOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.temperatureOption,
+                      temperatureLevel === 0 && { backgroundColor: colors.primary[100] }
+                    ]}
+                    onPress={() => setTemperatureLevel(0)}
+                  >
+                    <Text style={[
+                      styles.temperatureOptionText,
+                      { color: temperatureLevel === 0 ? colors.primary[600] : colors.neutral[500] }
+                    ]}>
+                      Normal
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.temperatureOption,
+                      temperatureLevel === 1 && { backgroundColor: colors.warning[100] }
+                    ]}
+                    onPress={() => setTemperatureLevel(1)}
+                  >
+                    <Text style={[
+                      styles.temperatureOptionText,
+                      { color: temperatureLevel === 1 ? colors.warning[600] : colors.neutral[500] }
+                    ]}>
+                      >25°C
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.temperatureOption,
+                      temperatureLevel === 2 && { backgroundColor: colors.warning[200] }
+                    ]}
+                    onPress={() => setTemperatureLevel(2)}
+                  >
+                    <Text style={[
+                      styles.temperatureOptionText,
+                      { color: temperatureLevel === 2 ? colors.warning[700] : colors.neutral[500] }
+                    ]}>
+                      >30°C
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.temperatureOption,
+                      temperatureLevel === 3 && { backgroundColor: colors.error[100] }
+                    ]}
+                    onPress={() => setTemperatureLevel(3)}
+                  >
+                    <Text style={[
+                      styles.temperatureOptionText,
+                      { color: temperatureLevel === 3 ? colors.error[600] : colors.neutral[500] }
+                    ]}>
+                      >35°C
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              <View style={styles.activitySelector}>
+                <Text style={[styles.activityLabel, { color: colors.neutral[600] }]}>
+                  Activité physique intense (>1h)
+                </Text>
+                <Switch
+                  value={physicalActivity}
+                  onValueChange={setPhysicalActivity}
+                  trackColor={{
+                    false: colors.neutral[200],
+                    true: colors.success[200],
+                  }}
+                  thumbColor={
+                    physicalActivity ? colors.success[500] : colors.neutral[50]
+                  }
+                />
+              </View>
+              
+              <View style={styles.adjustmentSummary}>
+                <Text style={[styles.adjustmentLabel, { color: colors.neutral[600] }]}>
+                  Ajustement total:
+                </Text>
+                <Text style={[styles.adjustmentValue, { color: colors.primary[600] }]}>
+                  {(temperatureLevel === 1 ? "+0.5L" : temperatureLevel === 2 ? "+1.0L" : temperatureLevel === 3 ? "+1.5L" : "+0.0L")}
+                  {physicalActivity ? " +2.0L" : ""}
+                </Text>
+              </View>
+              
+              <TouchableOpacity
+                style={[styles.applyButton, { backgroundColor: colors.primary[500] }]}
+                onPress={applyClimateAdjustment}
+              >
+                <Text style={styles.applyButtonText}>
+                  {calculatedAdjustment > 0 ? "Appliquer l'ajustement" : "Réinitialiser l'ajustement"}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
           {/* Correction mode toggle - animated */}
           <Animated.View
@@ -454,5 +644,101 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.5,
     opacity: 0.8,
+  },
+  
+  // Styles pour l'ajustement climatique
+  climateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  climateButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 8,
+  },
+  climatePanel: {
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  climatePanelTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  temperatureSelector: {
+    marginBottom: 16,
+  },
+  temperatureLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    marginBottom: 8,
+  },
+  temperatureOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  temperatureOption: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    marginHorizontal: 2,
+    alignItems: 'center',
+  },
+  temperatureOptionText: {
+    fontSize: 13,
+    fontFamily: 'Inter-Medium',
+  },
+  activitySelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  activityLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    flex: 1,
+  },
+  adjustmentSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  adjustmentLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+  },
+  adjustmentValue: {
+    fontSize: 16,
+    fontFamily: 'Inter-Bold',
+  },
+  applyButton: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
   },
 });

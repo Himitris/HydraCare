@@ -39,6 +39,7 @@ interface UserSettings {
   darkMode: boolean;
   remindersEnabled: boolean;
   reminderFrequency: number; // in minutes
+  temporaryGoalAdjustment: number; // NOUVEAU: ajustement temporaire pour aujourd'hui
 }
 
 interface WaterIntake {
@@ -69,6 +70,13 @@ interface AppContextType {
   // Theme
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+
+  // Ajout des méthodes pour l'ajustement temporaire
+  applyTemporaryAdjustment: (adjustment: number) => void;
+  clearTemporaryAdjustment: () => void;
+
+  // Ajout d'un getter pour l'objectif du jour (base + ajustement)
+  currentDailyGoal: number;
 }
 
 // Default settings
@@ -78,6 +86,7 @@ const defaultSettings: UserSettings = {
   darkMode: false,
   remindersEnabled: false, // Start with notifications disabled
   reminderFrequency: 60, // minutes
+  temporaryGoalAdjustment: 0, // NOUVEAU: par défaut aucun ajustement
 };
 
 // Create context with default values
@@ -93,6 +102,9 @@ const AppContext = createContext<AppContextType>({
   dailyProgress: 0,
   isDarkMode: false,
   toggleDarkMode: () => {},
+  applyTemporaryAdjustment: () => {},
+  clearTemporaryAdjustment: () => {},
+  currentDailyGoal: 0,
 });
 
 // Helper to get today's date as a string key - memoized
@@ -121,13 +133,18 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const appStateRef = useRef(AppState.currentState);
   const saveInProgressRef = useRef(false);
 
+  // Calcul du dailyGoal actuel incluant l'ajustement temporaire
+  const currentDailyGoal = useMemo(() => {
+    return settings.dailyGoal + settings.temporaryGoalAdjustment;
+  }, [settings.dailyGoal, settings.temporaryGoalAdjustment]);
+
   // Memoize dailyProgress pour éviter les recalculs
   const dailyProgress = useMemo(() => {
     return (
       todayIntake.reduce((total, item) => total + item.amount, 0) /
-      settings.dailyGoal
+      currentDailyGoal
     );
-  }, [todayIntake, settings.dailyGoal]);
+  }, [todayIntake, currentDailyGoal]);
 
   // Debounced save pour éviter trop d'opérations AsyncStorage
   const debouncedSaveData = useCallback(
@@ -311,6 +328,17 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           // Reset today's intake
           setTodayIntake([]);
 
+          // C'est un nouveau jour, donc on réinitialise aussi l'ajustement temporaire
+          if (settings.temporaryGoalAdjustment !== 0) {
+            const updatedSettings = { ...settings, temporaryGoalAdjustment: 0 };
+            setSettings(updatedSettings);
+            await AsyncStorage.setItem(
+              'hydracare-settings',
+              JSON.stringify(updatedSettings)
+            );
+            memoryCache['hydracare-settings'] = updatedSettings;
+          }
+
           await AsyncStorage.setItem('hydracare-today-key', currentKey);
           await AsyncStorage.setItem('hydracare-today', JSON.stringify([]));
           memoryCache['hydracare-today-key'] = currentKey;
@@ -375,6 +403,10 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
           try {
             const parsedSettings = JSON.parse(savedSettingsRaw);
             // Make sure remindersEnabled is false by default if not set
+            // Assurer que temporaryGoalAdjustment est initialisé
+            if (parsedSettings.temporaryGoalAdjustment === undefined) {
+              parsedSettings.temporaryGoalAdjustment = 0;
+            }
             setSettings({ ...defaultSettings, ...parsedSettings });
           } catch (e) {
             console.error('Error parsing settings:', e);
@@ -425,6 +457,20 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
                     JSON.stringify(updatedHistory)
                   );
                   memoryCache['hydracare-history'] = updatedHistory;
+                }
+
+                // Réinitialiser l'ajustement temporaire pour le nouveau jour
+                if (settings.temporaryGoalAdjustment !== 0) {
+                  const updatedSettings = {
+                    ...settings,
+                    temporaryGoalAdjustment: 0,
+                  };
+                  setSettings(updatedSettings);
+                  await AsyncStorage.setItem(
+                    'hydracare-settings',
+                    JSON.stringify(updatedSettings)
+                  );
+                  memoryCache['hydracare-settings'] = updatedSettings;
                 }
 
                 // Mettre à jour le jour actuel
@@ -532,6 +578,41 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings, todayIntake, debouncedSaveData]
   );
 
+  // Fonction pour appliquer un ajustement temporaire
+  const applyTemporaryAdjustment = useCallback(
+    async (adjustment: number) => {
+      const updatedSettings = {
+        ...settings,
+        temporaryGoalAdjustment: adjustment,
+      };
+      setSettings(updatedSettings);
+
+      // Sauvegarder le nouvel ajustement
+      await AsyncStorage.setItem(
+        'hydracare-settings',
+        JSON.stringify(updatedSettings)
+      );
+      memoryCache['hydracare-settings'] = updatedSettings;
+    },
+    [settings]
+  );
+
+  // Fonction pour effacer l'ajustement temporaire
+  const clearTemporaryAdjustment = useCallback(async () => {
+    const updatedSettings = {
+      ...settings,
+      temporaryGoalAdjustment: 0,
+    };
+    setSettings(updatedSettings);
+
+    // Sauvegarder avec l'ajustement remis à zéro
+    await AsyncStorage.setItem(
+      'hydracare-settings',
+      JSON.stringify(updatedSettings)
+    );
+    memoryCache['hydracare-settings'] = updatedSettings;
+  }, [settings]);
+
   // Function to add water intake - optimized with debounce
   const addWaterIntake = useCallback(
     async (amount: number) => {
@@ -557,14 +638,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
       if (Platform.OS === 'android') {
         try {
           const currentAmount =
-            Math.round(dailyProgress * settings.dailyGoal) + amount;
+            Math.round(dailyProgress * currentDailyGoal) + amount;
 
           // Utilisation de SharedPreferences pour le widget
           const { SharedStorage } = NativeModules;
           if (SharedStorage) {
             await SharedStorage.setItem(
               'dailyGoal',
-              settings.dailyGoal.toString()
+              currentDailyGoal.toString()
             );
             await SharedStorage.setItem(
               'currentIntake',
@@ -582,7 +663,14 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
         ['hydracare-history', JSON.stringify(updatedHistory)],
       ]);
     },
-    [todayIntake, history, settings, dailyProgress, debouncedSaveData]
+    [
+      todayIntake,
+      history,
+      settings,
+      dailyProgress,
+      currentDailyGoal,
+      debouncedSaveData,
+    ]
   );
 
   // Function to remove water intake - optimized with debounce
@@ -678,6 +766,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
       dailyProgress,
       isDarkMode,
       toggleDarkMode,
+      applyTemporaryAdjustment,
+      clearTemporaryAdjustment,
+      currentDailyGoal,
     }),
     [
       settings,
@@ -691,6 +782,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
       dailyProgress,
       isDarkMode,
       toggleDarkMode,
+      applyTemporaryAdjustment,
+      clearTemporaryAdjustment,
+      currentDailyGoal,
     ]
   );
 

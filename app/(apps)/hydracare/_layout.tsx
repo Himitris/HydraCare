@@ -2,7 +2,12 @@
 import Colors from '@/constants/Colors';
 import { useAppContext } from '@/context/AppContext';
 import { Stack } from 'expo-router';
-import { BarChart2, TrendingUp, Settings, Droplet } from 'lucide-react-native';
+import {
+  BarChart2,
+  TrendingUp,
+  Calculator,
+  Droplet,
+} from 'lucide-react-native';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import CustomTabBar from '@/components/common/CustomTabBar';
@@ -29,16 +34,16 @@ export default function TabLayout() {
     },
     {
       name: 'history',
-      label:'Historique',
+      label: 'Historique',
       icon: ({ color, size }: { color: string; size: number }) => (
         <BarChart2 size={size} color={color} />
       ),
     },
     {
-      name: 'settings',
-      label: 'Réglages',
+      name: 'calculator',
+      label: 'Calculer',
       icon: ({ color, size }: { color: string; size: number }) => (
-        <Settings size={size} color={color} />
+        <Calculator size={size} color={color} />
       ),
     },
   ];
@@ -49,7 +54,7 @@ export default function TabLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="insights" />
         <Stack.Screen name="history" />
-        <Stack.Screen name="settings" />
+        <Stack.Screen name="calculator" />
       </Stack>
 
       <CustomTabBar
